@@ -36,12 +36,21 @@ These are product and safety rules, not preferences. If a change would break one
 
 Do not add features outside this list. If something seems missing, ask.
 
+## Product decisions (settled — do not reopen without asking)
+
+- **Rooms.** Main Floor; The Bar (child of Main Floor, so rule 3 has an addressable place); Rooftop; The Suite (21+ **and** guest-pass-only — 21+ is the floor, not the headline); Suite Booth (child of The Suite); The Spot; After Hours.
+- **After Hours concentrates the night.** When After Hours opens, Main Floor, The Bar, Rooftop and The Spot close. The Suite stays open. Expressed via each room's `openDuring`, not code.
+- **Cut from V1:** Open Circles, Music Trivia, Campus Clash. Rooms must not make games hard to add later (games would be their own records pointing at a room), but don't build them.
+- **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
+- **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
+
 ## Visual identity
 
 - Neon purple is the primary. Gold is reserved for VIP / The Suite and must not be used for ordinary UI accents.
 - Logo: brush-script "THE DORM", white on transparent (`design/logo-white.webp`).
 - Dark interface throughout.
 - Reference mockup: `design/mockup-v1.webp`. It is mood, not spec — where it conflicts with the invariants or scope above, the invariants and scope win.
+- Art rules: drinks may appear as unlabeled glassware and backlit shelves only — no readable labels or identifiable bottle silhouettes, anywhere. Banner crowns are white; gold appears only in The Suite.
 
 ## How to work in this repo
 
@@ -60,3 +69,11 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 
 - Backend is deferred on purpose. When it lands, it is Supabase.
 - Rooms should be data, not code — one shape describing each room's label, parent, capacity, access rule, and art. Adding a room should mean adding a record, not writing a component.
+
+## Code map
+
+- `src/venue/rooms.ts` — room records + load-time self-check (parents exist, no cycles, The Suite and everything under it is 21+).
+- `src/venue/machine.ts` — the venue state machine. `canEnter` is the **only** access check. Access is inherited: entering a room requires passing every ancestor's rule. Age is checked before guest passes are consulted, so a pass cannot affect the age result.
+- `src/venue/VenueProvider.tsx` — `useVenue()` for screens. Screens show `canEnter` reasons; they never re-express a rule.
+- `src/data/mock.ts` — the only fixture file.
+- Tests: `npm test` (Node's built-in runner, no extra deps). Lint: `npm run lint` (oxlint, from the starter).
