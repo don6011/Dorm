@@ -29,6 +29,12 @@ export interface Viewer {
   guestPasses: readonly GuestPass[];
 }
 
+export interface DjSet {
+  name: string;
+  genres: readonly string[];
+  roomId: RoomId;
+}
+
 export interface NightSchedule {
   opensAt: number;
   afterHoursAt: number;
@@ -47,6 +53,8 @@ export interface VenueState {
   phase: NightPhase;
   schedule: NightSchedule;
   viewer: Viewer;
+  /** Who's on the decks tonight. Shown only while their room is open. */
+  dj: DjSet | null;
   location: RoomId | null;
   /** Headcount per room, including the viewer. */
   occupancy: Partial<Record<RoomId, number>>;
@@ -163,6 +171,7 @@ export function createVenueState(init: {
   viewer: Viewer;
   schedule: NightSchedule;
   now: number;
+  dj?: DjSet | null;
   occupancy?: Partial<Record<RoomId, number>>;
 }): VenueState {
   return {
@@ -170,6 +179,7 @@ export function createVenueState(init: {
     phase: phaseAt(init.schedule, init.now),
     schedule: init.schedule,
     viewer: init.viewer,
+    dj: init.dj ?? null,
     location: null,
     occupancy: { ...init.occupancy },
     lastDenial: null,

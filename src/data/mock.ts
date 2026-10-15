@@ -1,7 +1,7 @@
 // All mock data lives here. Nothing else in src/ defines fixtures.
 
 import type { RoomId } from '../venue/rooms.ts';
-import type { NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
+import type { DjSet, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
 
 /** Doors 9 PM, After Hours at midnight, close 3 AM — local time. */
 export function buildNightSchedule(nightOf: Date): NightSchedule {
@@ -65,10 +65,10 @@ export const MOCK_VIEWERS = {
   },
 } satisfies Record<string, Viewer>;
 
-export const MOCK_DJ = {
+export const MOCK_DJ: DjSet = {
   name: 'DJ Elevate',
   genres: ['Hip Hop', 'Afrobeats', 'Amapiano'],
-  roomId: 'main-floor' satisfies RoomId,
+  roomId: 'main-floor',
 };
 
 export const MOCK_OCCUPANCY: Partial<Record<RoomId, number>> = {

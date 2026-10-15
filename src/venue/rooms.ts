@@ -13,6 +13,8 @@ export interface AccessRule {
 export interface RoomRecord {
   id: string;
   label: string;
+  /** One line under the label. No alcohol references: everyone sees it. */
+  tagline: string;
   /** Entering a room requires passing every ancestor's rules too. */
   parent: string | null;
   /**
@@ -36,6 +38,7 @@ const RECORDS = [
   {
     id: 'main-floor',
     label: 'Main Floor',
+    tagline: 'Every campus. One floor.',
     parent: null,
     capacity: null,
     access: { minAge: 18, entry: 'open' },
@@ -45,6 +48,7 @@ const RECORDS = [
   {
     id: 'bar',
     label: 'The Bar',
+    tagline: 'Pull up. Stay a while.',
     parent: 'main-floor',
     capacity: 60,
     access: { minAge: 18, entry: 'open' },
@@ -54,6 +58,7 @@ const RECORDS = [
   {
     id: 'rooftop',
     label: 'Rooftop',
+    tagline: 'Different views. Same energy.',
     parent: null,
     capacity: 400,
     access: { minAge: 18, entry: 'open' },
@@ -63,6 +68,7 @@ const RECORDS = [
   {
     id: 'suite',
     label: 'The Suite',
+    tagline: 'A higher level.',
     parent: null,
     capacity: 40,
     access: { minAge: 21, entry: 'guestPass' },
@@ -72,6 +78,7 @@ const RECORDS = [
   {
     id: 'suite-booth',
     label: 'Suite Booth',
+    tagline: 'More personal. Same energy.',
     parent: 'suite',
     capacity: 8,
     access: { minAge: 21, entry: 'open' },
@@ -81,6 +88,7 @@ const RECORDS = [
   {
     id: 'spot',
     label: 'The Spot',
+    tagline: 'Laughs. Connections.',
     parent: null,
     capacity: 300,
     access: { minAge: 18, entry: 'open' },
@@ -90,6 +98,7 @@ const RECORDS = [
   {
     id: 'after-hours',
     label: 'After Hours',
+    tagline: 'When the clock hits different.',
     parent: null,
     capacity: null,
     access: { minAge: 18, entry: 'open' },
