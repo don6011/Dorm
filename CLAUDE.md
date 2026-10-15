@@ -43,6 +43,9 @@ Do not add features outside this list. If something seems missing, ask.
 - **Cut from V1:** Open Circles, Music Trivia, Campus Clash. Rooms must not make games hard to add later (games would be their own records pointing at a room), but don't build them.
 - **Capacity rolls upward.** A room's capacity counts the room and everything beneath it (see the comment on `capacity` in `rooms.ts`). Not yet implemented.
 - **Rule 3 lives in the machine, scoped to items and menus.** A machine-owned check (planned name `canSeeAlcohol`) decides whether alcohol-identified *items and menus* render. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
+- **Headcounts: show occupancy for barriers you can overcome, hide it for barriers you can't.** A pass, .edu verification or a full room can be overcome, so the count shows. Age can't, so it's hidden: show the lock, not the party. This lives in `showsHeadcount` in the machine. Access reports age before "closed", so the permanent barrier is the one shown.
+- **Locked and closed rooms stay visible.** The Suite shows a 21+ lock to under-21 members, never hidden. Rooms closed at After Hours show dimmed beneath a divider, so it reads as the night moving, not the app shrinking.
+- **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce.
 - **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 

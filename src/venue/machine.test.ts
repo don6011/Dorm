@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { MOCK_OCCUPANCY, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
-import { canEnter, createVenueState, venueReducer, type Viewer } from './machine.ts';
+import { canEnter, createVenueState, opensAt, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
 import { ROOMS, validateRooms, type RoomId, type RoomRecord } from './rooms.ts';
 
 const ALL_ROOMS = ROOMS.map((r) => r.id);
@@ -123,6 +123,37 @@ test('a pass that expires while inside moves the viewer out', () => {
   const later = venueReducer(inside, { type: 'tick', now: TEST_TIMES.live + 2000 });
   assert.equal(later.location, null);
   assert.equal(later.lastDenial?.reason, 'needsPass');
+});
+
+test('age is reported over "closed": under-21 sees 21+ on The Suite before doors', () => {
+  const v = MOCK_VIEWERS.under21WithSuitePass;
+  assert.deepEqual(denial(v, 'suite', TEST_TIMES.beforeDoors), { reason: 'underage', roomId: 'suite' });
+  assert.equal(denial(v, 'main-floor', TEST_TIMES.beforeDoors)?.reason, 'closed');
+});
+
+test('opensAt: next opening tonight, or null', () => {
+  const v = MOCK_VIEWERS.over21NoPass;
+  const before = stateFor(v, TEST_TIMES.beforeDoors);
+  assert.equal(opensAt(before, 'bar'), TEST_NIGHT.opensAt);
+  assert.equal(opensAt(before, 'after-hours'), TEST_NIGHT.afterHoursAt);
+  const live = stateFor(v);
+  assert.equal(opensAt(live, 'bar'), null, 'already open');
+  assert.equal(opensAt(live, 'after-hours'), TEST_NIGHT.afterHoursAt);
+  const late = stateFor(v, TEST_TIMES.afterHours);
+  assert.equal(opensAt(late, 'main-floor'), null, 'closed for tonight');
+  assert.equal(opensAt(stateFor(v, TEST_TIMES.afterClose), 'after-hours'), null);
+});
+
+test('headcount: shown past a pass barrier, hidden past an age barrier', () => {
+  assert.equal(showsHeadcount(stateFor(MOCK_VIEWERS.over21NoPass), 'suite'), true);
+  assert.equal(showsHeadcount(stateFor(MOCK_VIEWERS.unverified), 'suite'), true);
+  for (const id of ['suite', 'suite-booth'] as const) {
+    for (const now of Object.values(TEST_TIMES)) {
+      assert.equal(showsHeadcount(stateFor(MOCK_VIEWERS.under21WithSuitePass, now), id), false, `${id} @ ${now}`);
+    }
+  }
+  assert.equal(showsHeadcount(stateFor(MOCK_VIEWERS.under21WithSuitePass), 'bar'), true);
+  assert.equal(showsHeadcount(stateFor(MOCK_VIEWERS.over21NoPass), 'after-hours'), false, 'closed');
 });
 
 // --- Capacity & movement -----------------------------------------------

@@ -80,12 +80,46 @@ function hasValidPass(viewer: Viewer, roomId: RoomId, now: number): boolean {
   return viewer.guestPasses.some((p) => p.roomId === roomId && p.expiresAt > now);
 }
 
+/** Open in the current phase — the room and every ancestor. */
+export function isOpen(state: VenueState, roomId: RoomId): boolean {
+  return roomChain(roomId).every((room) => room.openDuring.includes(state.phase));
+}
+
+/**
+ * When a room that is closed now next opens tonight, or null if it is open
+ * or won't open again tonight.
+ */
+export function opensAt(state: VenueState, roomId: RoomId): number | null {
+  if (isOpen(state, roomId)) return null;
+  const starts: { phase: NightPhase; at: number }[] = [
+    { phase: 'live', at: state.schedule.opensAt },
+    { phase: 'afterHours', at: state.schedule.afterHoursAt },
+  ];
+  const chain = roomChain(roomId);
+  const next = starts.find(
+    ({ phase, at }) => at > state.now && chain.every((room) => room.openDuring.includes(phase)),
+  );
+  return next ? next.at : null;
+}
+
+/**
+ * Whether a room's headcount may be shown. Rule: show occupancy for barriers
+ * the viewer can overcome (a pass, verification, a full room), hide it for
+ * ones they can't (age). Show the lock, not the party. Closed rooms have no
+ * meaningful count.
+ */
+export function showsHeadcount(state: VenueState, roomId: RoomId): boolean {
+  const access = canEnter(state, roomId);
+  if (!access.ok && access.reason === 'underage') return false;
+  return isOpen(state, roomId);
+}
+
 /**
  * The only access check. `staying` re-validates a room the viewer is already
  * in, so capacity (which already counts them) is skipped.
  */
 function checkAccess(state: VenueState, roomId: RoomId, staying: boolean): Access {
-  const { viewer, now, phase } = state;
+  const { viewer, now } = state;
   const chain = roomChain(roomId);
   const age = ageOn(viewer.dob, now);
 
@@ -93,14 +127,17 @@ function checkAccess(state: VenueState, roomId: RoomId, staying: boolean): Acces
   if (!viewer.eduVerified) return { ok: false, reason: 'unverified', roomId };
   if (age < 18) return { ok: false, reason: 'underage', roomId };
 
-  for (const room of chain) {
-    if (!room.openDuring.includes(phase)) return { ok: false, reason: 'closed', roomId: room.id };
-  }
-
   // Invariants 1 and 2: age is settled for the whole chain before any guest
-  // pass is consulted, so no pass can influence an age denial.
+  // pass is consulted, so no pass can influence an age denial. It also comes
+  // before the phase check: a barrier that can't be overcome is reported over
+  // one that is only "not yet".
   for (const room of chain) {
     if (age < room.access.minAge) return { ok: false, reason: 'underage', roomId: room.id };
+  }
+
+  if (!isOpen(state, roomId)) {
+    const shut = chain.find((room) => !room.openDuring.includes(state.phase))!;
+    return { ok: false, reason: 'closed', roomId: shut.id };
   }
 
   for (const room of chain) {
