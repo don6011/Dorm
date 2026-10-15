@@ -15,7 +15,15 @@ export interface RoomRecord {
   label: string;
   /** Entering a room requires passing every ancestor's rules too. */
   parent: string | null;
-  /** Max people in this room. null = uncapped. */
+  /**
+   * Max people in this room. null = uncapped.
+   *
+   * Decided, not yet implemented: capacity counts this room AND everything
+   * beneath it. Access inherits downward, so occupancy rolls upward — someone
+   * at The Bar counts against Main Floor. Otherwise a capped parent can be
+   * bypassed by routing through a child. Today the check counts the target
+   * room only, which is safe while no parent with children has a cap.
+   */
   capacity: number | null;
   access: AccessRule;
   /** Phases this room is open. A child is only open when its ancestors are. */

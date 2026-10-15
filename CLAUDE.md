@@ -41,6 +41,8 @@ Do not add features outside this list. If something seems missing, ask.
 - **Rooms.** Main Floor; The Bar (child of Main Floor, so rule 3 has an addressable place); Rooftop; The Suite (21+ **and** guest-pass-only — 21+ is the floor, not the headline); Suite Booth (child of The Suite); The Spot; After Hours.
 - **After Hours concentrates the night.** When After Hours opens, Main Floor, The Bar, Rooftop and The Spot close. The Suite stays open. Expressed via each room's `openDuring`, not code.
 - **Cut from V1:** Open Circles, Music Trivia, Campus Clash. Rooms must not make games hard to add later (games would be their own records pointing at a room), but don't build them.
+- **Capacity rolls upward.** A room's capacity counts the room and everything beneath it (see the comment on `capacity` in `rooms.ts`). Not yet implemented.
+- **Rule 3 lives in the machine, scoped to items and menus.** A machine-owned check (planned name `canSeeAlcohol`) decides whether alcohol-identified *items and menus* render. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
 - **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
