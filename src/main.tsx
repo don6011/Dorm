@@ -2,7 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { MOCK_DJ, MOCK_OCCUPANCY, MOCK_VIEWERS, tonight } from './data/mock.ts'
+import { MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from './data/mock.ts'
+import { SocialProvider } from './social/SocialProvider.tsx'
 import { DevRoot } from './dev/DevRoot.tsx'
 import { VenueProvider } from './venue/VenueProvider.tsx'
 
@@ -17,8 +18,11 @@ createRoot(document.getElementById('root')!).render(
         schedule={tonight(Date.now())}
         occupancy={MOCK_OCCUPANCY}
         dj={MOCK_DJ}
+        presence={MOCK_PRESENCE}
       >
-        <App />
+        <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
+          <App />
+        </SocialProvider>
       </VenueProvider>
     )}
   </StrictMode>,

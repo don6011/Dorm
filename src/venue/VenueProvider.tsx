@@ -17,13 +17,14 @@ export function VenueProvider(props: {
   schedule: NightSchedule;
   occupancy?: Partial<Record<RoomId, number>>;
   dj?: DjSet | null;
+  presence?: Readonly<Record<string, RoomId | null>>;
   /** Source of "now". Defaults to the real clock; dev tools pass a simulated one. */
   clock?: () => number;
   children: ReactNode;
 }) {
   const clock = props.clock ?? Date.now;
   const [state, dispatch] = useReducer(venueReducer, undefined, () =>
-    createVenueState({ viewer: props.viewer, schedule: props.schedule, occupancy: props.occupancy, dj: props.dj, now: clock() }),
+    createVenueState({ viewer: props.viewer, schedule: props.schedule, occupancy: props.occupancy, dj: props.dj, presence: props.presence, now: clock() }),
   );
 
   // Time only ever reaches the machine as a tick, so a new clock is applied
