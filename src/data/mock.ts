@@ -2,6 +2,7 @@
 
 import type { RoomId } from '../venue/rooms.ts';
 import type { DjSet, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
+import type { ConnectionStatus } from '../social/social.ts';
 
 /** Doors 9 PM, After Hours at midnight, close 3 AM — local time. */
 export function buildNightSchedule(nightOf: Date): NightSchedule {
@@ -90,3 +91,30 @@ export const MOCK_OCCUPANCY: Partial<Record<RoomId, number>> = {
   spot: 147,
   'after-hours': 0,
 };
+
+/** The viewer's connections at sign-in. */
+export const MOCK_CONNECTIONS: Record<string, ConnectionStatus> = {
+  'm-aaliyah': 'connected',
+  'm-dev': 'connected',
+  'm-jade': 'pending',
+};
+
+const T0 = new Date(2026, 9, 15, 22).getTime();
+
+/** Direct-message threads, one per connected member. */
+export const MOCK_THREADS = [
+  { memberId: 'm-aaliyah', last: { authorId: 'm-aaliyah', body: 'you on the floor yet?', sentAt: T0 - 4 * 60_000 } },
+  { memberId: 'm-dev', last: { authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 } },
+];
+
+/** Room chat, for the Main Floor screen. */
+export const MOCK_CHAT = [
+  { id: 'c1', roomId: 'main-floor', authorId: 'm-aaliyah', body: 'this set is unreal', sentAt: T0 - 90_000 },
+  { id: 'c2', roomId: 'main-floor', authorId: 'm-marcus', body: 'who else is here from Texas', sentAt: T0 - 60_000 },
+  { id: 'c3', roomId: 'main-floor', authorId: 'm-jade', body: 'run it back DJ', sentAt: T0 - 30_000 },
+] as const;
+
+/** Invitations to a room. Not rendered yet; the block rule already covers them. */
+export const MOCK_INVITES = [
+  { id: 'i1', fromId: 'm-marcus', roomId: 'rooftop', sentAt: T0 - 10 * 60_000 },
+] as const;
