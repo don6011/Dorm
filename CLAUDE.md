@@ -86,4 +86,4 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/venue/machine.ts` — the venue state machine. `canEnter` is the **only** access check. Access is inherited: entering a room requires passing every ancestor's rule. Age is checked before guest passes are consulted, so a pass cannot affect the age result. The app never holds a DOB: `Viewer.eligibility` carries `is18`/`is21` flags, computed server-side from DOB when the backend lands (invariant 4).
 - `src/venue/VenueProvider.tsx` — `useVenue()` for screens. Screens show `canEnter` reasons; they never re-express a rule.
 - `src/data/mock.ts` — the only fixture file.
-- Tests: `npm test` (Node's built-in runner, no extra deps). Lint: `npm run lint` (oxlint, from the starter).
+- Tests: `npm test` (vitest; dev-only, pinned). Component tests opt into a DOM with a `// @vitest-environment jsdom` first line. Lint: `npm run lint` (oxlint, from the starter).
