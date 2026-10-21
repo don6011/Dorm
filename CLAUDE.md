@@ -47,6 +47,7 @@ Do not add features outside this list. If something seems missing, ask.
 - **Locked and closed rooms stay visible.** The Suite shows a 21+ lock to under-21 members, never hidden. Rooms closed at After Hours show dimmed beneath a divider, so it reads as the night moving, not the app shrinking.
 - **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce.
 - **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
+- **Repos.** `don6011/Dorm` is the base. The Lovable prototype (`don6011/the-dorm-experience`) and the zipped "the-dorm v1" build are parts bins only: port pieces one at a time (chat sheet, keyboard fix, offline outbox, service seam) when we reach them, never wholesale.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
 ## Visual identity
@@ -56,6 +57,10 @@ Do not add features outside this list. If something seems missing, ask.
 - Dark interface throughout.
 - Reference mockup: `design/mockup-v1.webp`. It is mood, not spec — where it conflicts with the invariants or scope above, the invariants and scope win.
 - Art rules: drinks may appear as unlabeled glassware and backlit shelves only — no readable labels or identifiable bottle silhouettes, anywhere. Banner crowns are white; gold appears only in The Suite.
+- Room art lives in `src/assets/rooms/<room.art>.webp` and is picked up by file name; a missing file falls back to a gradient tile. Status:
+  - In: Main Floor, The Bar, Rooftop, The Suite (from the Lovable prototype).
+  - Needs a 1024px regeneration: The Bar and The Suite (current files are the 768px "-young" versions).
+  - Being regenerated separately: Suite Booth, The Spot, After Hours, and the arrival scene.
 
 ## How to work in this repo
 
