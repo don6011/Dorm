@@ -37,6 +37,16 @@ export const MOCK_MEMBERS: readonly PublicMember[] = [
   { id: 'm-leo', displayName: 'Leo', campus: 'USC' },
 ];
 
+/** Where each mock member is tonight. m-dev and m-imani are in 21+ rooms. */
+export const MOCK_PRESENCE: Readonly<Record<string, RoomId | null>> = {
+  'm-aaliyah': 'main-floor',
+  'm-marcus': 'bar',
+  'm-jade': 'rooftop',
+  'm-dev': 'suite',
+  'm-imani': 'suite-booth',
+  'm-leo': null,
+};
+
 /** Viewers covering each access case. Eligibility stands in for what the server computes from DOB. */
 export const MOCK_VIEWERS = {
   over21WithSuitePass: {

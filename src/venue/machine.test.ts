@@ -1,8 +1,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { MOCK_OCCUPANCY, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
-import { canEnter, createVenueState, opensAt, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
+import { MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
+import { canEnter, createVenueState, opensAt, presenceOf, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
 import { ROOMS, validateRooms, type RoomId, type RoomRecord } from './rooms.ts';
 
 const ALL_ROOMS = ROOMS.map((r) => r.id);
@@ -218,4 +218,42 @@ test('self-check rejects parent cycles', () => {
 test('self-check rejects duplicate ids and a child open when its parent is not', () => {
   assert.ok(validateRooms([...base, { ...base[0] }]).some((e) => e.includes('duplicate')));
   assert.ok(validateRooms(edit('bar', { openDuring: ['live', 'afterHours'] })).some((e) => e.includes('parent "main-floor" does not')));
+});
+
+// --- Presence masking (21+ rooms reveal age) ----------------------------
+
+function viewerAt(viewer: Viewer, roomId: RoomId | null) {
+  let s = createVenueState({ viewer, schedule: TEST_NIGHT, now: TEST_TIMES.live, occupancy: {}, presence: MOCK_PRESENCE });
+  if (roomId) s = venueReducer(s, { type: 'enter', roomId });
+  assert.equal(s.location, roomId);
+  return s;
+}
+
+test('presence in a 21+ room is masked for anyone outside it', () => {
+  for (const [viewer, at] of [
+    [MOCK_VIEWERS.under21WithSuitePass, null],
+    [MOCK_VIEWERS.under21WithSuitePass, 'main-floor'],
+    [MOCK_VIEWERS.over21WithSuitePass, null],
+    [MOCK_VIEWERS.over21WithSuitePass, 'bar'],
+  ] as const) {
+    const s = viewerAt(viewer, at);
+    assert.deepEqual(presenceOf(s, 'm-dev'), { kind: 'masked' }, `suite, viewer at ${at}`);
+    assert.deepEqual(presenceOf(s, 'm-imani'), { kind: 'masked' }, `booth, viewer at ${at}`);
+  }
+});
+
+test('inside The Suite area, Suite and Booth presence is shown', () => {
+  for (const at of ['suite', 'suite-booth'] as const) {
+    const s = viewerAt(MOCK_VIEWERS.over21WithSuitePass, at);
+    assert.deepEqual(presenceOf(s, 'm-dev'), { kind: 'room', roomId: 'suite' });
+    assert.deepEqual(presenceOf(s, 'm-imani'), { kind: 'room', roomId: 'suite-booth' });
+  }
+});
+
+test('presence in open rooms is shown to everyone; absent members are away', () => {
+  const s = viewerAt(MOCK_VIEWERS.under21WithSuitePass, null);
+  assert.deepEqual(presenceOf(s, 'm-marcus'), { kind: 'room', roomId: 'bar' });
+  assert.deepEqual(presenceOf(s, 'm-aaliyah'), { kind: 'room', roomId: 'main-floor' });
+  assert.deepEqual(presenceOf(s, 'm-leo'), { kind: 'away' });
+  assert.deepEqual(presenceOf(s, 'nobody'), { kind: 'away' });
 });

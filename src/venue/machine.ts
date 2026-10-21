@@ -66,6 +66,8 @@ export interface VenueState {
   location: RoomId | null;
   /** Headcount per room, including the viewer. */
   occupancy: Partial<Record<RoomId, number>>;
+  /** Where other members are: member id → room, or null when not in The Dorm. */
+  presence: Readonly<Record<string, RoomId | null>>;
   /** Why the last enter failed, or why the viewer was moved out. */
   lastDenial: Extract<Access, { ok: false }> | null;
 }
@@ -74,7 +76,8 @@ export type VenueAction =
   | { type: 'tick'; now: number }
   | { type: 'enter'; roomId: RoomId }
   | { type: 'leave' }
-  | { type: 'occupancy'; counts: Partial<Record<RoomId, number>> };
+  | { type: 'occupancy'; counts: Partial<Record<RoomId, number>> }
+  | { type: 'presence'; presence: Readonly<Record<string, RoomId | null>> };
 
 export function phaseAt(schedule: NightSchedule, now: number): NightPhase {
   if (now < schedule.opensAt || now >= schedule.closesAt) return 'closed';
@@ -118,6 +121,33 @@ export function opensAt(state: VenueState, roomId: RoomId): number | null {
  * ones they can't (age). Show the lock, not the party. Closed rooms have no
  * meaningful count.
  */
+/** What a viewer may learn about where another member is. */
+export type PresenceView =
+  | { kind: 'room'; roomId: RoomId }
+  /** In a 21+ room the viewer isn't in. Shown as "In The Dorm". */
+  | { kind: 'masked' }
+  | { kind: 'away' };
+
+/** The outermost 21+ room around `roomId`, or null when no age gate applies. */
+function ageGateZone(roomId: RoomId): RoomId | null {
+  const gated = roomChain(roomId).filter((room) => room.access.minAge === 21);
+  return gated.length > 0 ? gated[gated.length - 1].id : null;
+}
+
+/**
+ * Where another member appears to be, for every surface that shows presence.
+ * Being in a 21+ room reveals that a member is 21+, so it is masked unless the
+ * viewer is inside the same age-gated area (e.g. both somewhere in The Suite).
+ */
+export function presenceOf(state: VenueState, memberId: string): PresenceView {
+  const roomId = state.presence[memberId] ?? null;
+  if (roomId === null) return { kind: 'away' };
+  const zone = ageGateZone(roomId);
+  if (zone === null) return { kind: 'room', roomId };
+  const viewerInZone = state.location !== null && roomChain(state.location).some((room) => room.id === zone);
+  return viewerInZone ? { kind: 'room', roomId } : { kind: 'masked' };
+}
+
 export function showsHeadcount(state: VenueState, roomId: RoomId): boolean {
   const access = canEnter(state, roomId);
   if (!access.ok && access.reason === 'underage') return false;
@@ -174,6 +204,7 @@ export function createVenueState(init: {
   now: number;
   dj?: DjSet | null;
   occupancy?: Partial<Record<RoomId, number>>;
+  presence?: Readonly<Record<string, RoomId | null>>;
 }): VenueState {
   return {
     now: init.now,
@@ -183,6 +214,7 @@ export function createVenueState(init: {
     dj: init.dj ?? null,
     location: null,
     occupancy: { ...init.occupancy },
+    presence: { ...init.presence },
     lastDenial: null,
   };
 }
@@ -230,5 +262,7 @@ export function venueReducer(state: VenueState, action: VenueAction): VenueState
     }
     case 'occupancy':
       return { ...state, occupancy: { ...state.occupancy, ...action.counts } };
+    case 'presence':
+      return { ...state, presence: { ...state.presence, ...action.presence } };
   }
 }
