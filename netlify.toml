@@ -1,0 +1,11 @@
+# Netlify builds every push to main and every pull request.
+# Tests gate the deploy: a failing test means no new preview.
+[build]
+  command = "npm test && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Keeps the dev viewer/time switcher in deployed builds so the preview can
+  # show every room state on a phone. Remove before real members use the site.
+  VITE_DEV_TOOLS = "true"

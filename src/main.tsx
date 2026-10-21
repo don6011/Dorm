@@ -6,9 +6,10 @@ import { MOCK_DJ, MOCK_OCCUPANCY, MOCK_VIEWERS, tonight } from './data/mock.ts'
 import { DevRoot } from './dev/DevRoot.tsx'
 import { VenueProvider } from './venue/VenueProvider.tsx'
 
+// Preview deploys set VITE_DEV_TOOLS=true (netlify.toml) to keep the dev switcher.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {import.meta.env.DEV ? (
+    {import.meta.env.DEV || import.meta.env.VITE_DEV_TOOLS === 'true' ? (
       <DevRoot />
     ) : (
       <VenueProvider
