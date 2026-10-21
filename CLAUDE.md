@@ -47,6 +47,10 @@ Do not add features outside this list. If something seems missing, ask.
 - **Locked and closed rooms stay visible.** The Suite shows a 21+ lock to under-21 members, never hidden. Rooms closed at After Hours show dimmed beneath a divider, so it reads as the night moving, not the app shrinking.
 - **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce.
 - **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
+  - Block acts on the second tap, closes the sheet and shows an Undo toast for a few seconds; it never asks to confirm. Mute and Report confirm with a line in the sheet. The member acted on is never told.
+  - Block hides a member from People, room rosters and avatars, threads, every chat and invitations, and ends the connection (Undo restores it). Mute hides only their messages, in every chat including DMs.
+  - Members render only through `PersonTap` in `src/people/`; a test fails if a member's name is rendered anywhere else.
+- **Presence never reveals age.** A member in The Suite or the Suite Booth shows as "In The Dorm" to anyone outside that age-gated area: People rows, the person sheet, invitations, threads, everywhere presence appears. `presenceOf` in the machine decides it. The person sheet never shows age, DOB or 21+ status.
 - **Repos.** `don6011/Dorm` is the base. The Lovable prototype (`don6011/the-dorm-experience`) and the zipped "the-dorm v1" build are parts bins only: port pieces one at a time (chat sheet, keyboard fix, offline outbox, service seam) when we reach them, never wholesale.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
@@ -85,5 +89,8 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/venue/rooms.ts` — room records + load-time self-check (parents exist, no cycles, The Suite and everything under it is 21+).
 - `src/venue/machine.ts` — the venue state machine. `canEnter` is the **only** access check. Access is inherited: entering a room requires passing every ancestor's rule. Age is checked before guest passes are consulted, so a pass cannot affect the age result. The app never holds a DOB: `Viewer.eligibility` carries `is18`/`is21` flags, computed server-side from DOB when the backend lands (invariant 4).
 - `src/venue/VenueProvider.tsx` — `useVenue()` for screens. Screens show `canEnter` reasons; they never re-express a rule.
+- `src/social/social.ts` — connections, mute, block (with undo), report, and the selectors every surface filters through (`visibleMembers`, `visibleMessages`, `visibleThreads`, `visibleInvites`). The only place block/mute rules live. `SocialProvider.tsx` exposes it with the member directory.
+- `src/people/` — `PersonTap` (the only way members render), `PersonSheet` (the one sheet + Undo toast).
+- `src/nav/BottomNav.tsx`, `src/tabs/Tabs.tsx` — the four tabs. `hidden` on the nav is for open chat sheets.
 - `src/data/mock.ts` — the only fixture file.
 - Tests: `npm test` (vitest; dev-only, pinned). Component tests opt into a DOM with a `// @vitest-environment jsdom` first line. Lint: `npm run lint` (oxlint, from the starter).
