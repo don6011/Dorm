@@ -73,7 +73,7 @@ test('unverified members are refused every room', () => {
 });
 
 test('under-18 is refused every room even if verified', () => {
-  const viewer: Viewer = { ...MOCK_VIEWERS.over21NoPass, dob: '2010-01-01' };
+  const viewer: Viewer = { ...MOCK_VIEWERS.over21NoPass, eligibility: { is18: false, is21: false } };
   for (const id of ALL_ROOMS) assert.equal(denial(viewer, id)?.reason, 'underage', id);
 });
 

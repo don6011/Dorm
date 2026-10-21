@@ -18,13 +18,21 @@ export interface GuestPass {
 }
 
 /**
+ * Age tiers, computed from the date of birth by the server. The app never
+ * receives the DOB itself (invariant 4), only these flags.
+ */
+export interface Eligibility {
+  is18: boolean;
+  is21: boolean;
+}
+
+/**
  * The signed-in member's own account. Private fields live beside the public
  * profile, not inside it, so handing `profile` to a screen can't leak them.
  */
 export interface Viewer {
   profile: PublicMember;
-  /** YYYY-MM-DD. Private. Not editable after registration. */
-  dob: string;
+  eligibility: Eligibility;
   eduVerified: boolean;
   guestPasses: readonly GuestPass[];
 }
@@ -74,14 +82,8 @@ export function phaseAt(schedule: NightSchedule, now: number): NightPhase {
   return 'live';
 }
 
-/** Whole years of age on the local calendar date of `now`. */
-export function ageOn(dob: string, now: number): number {
-  const [y, m, d] = dob.split('-').map(Number);
-  const today = new Date(now);
-  let age = today.getFullYear() - y;
-  const month = today.getMonth() + 1;
-  if (month < m || (month === m && today.getDate() < d)) age -= 1;
-  return age;
+function meetsAge(eligibility: Eligibility, minAge: 18 | 21): boolean {
+  return minAge === 21 ? eligibility.is21 : eligibility.is18;
 }
 
 function hasValidPass(viewer: Viewer, roomId: RoomId, now: number): boolean {
@@ -129,18 +131,17 @@ export function showsHeadcount(state: VenueState, roomId: RoomId): boolean {
 function checkAccess(state: VenueState, roomId: RoomId, staying: boolean): Access {
   const { viewer, now } = state;
   const chain = roomChain(roomId);
-  const age = ageOn(viewer.dob, now);
 
   // Invariant 5: verified .edu, 18+ platform minimum.
   if (!viewer.eduVerified) return { ok: false, reason: 'unverified', roomId };
-  if (age < 18) return { ok: false, reason: 'underage', roomId };
+  if (!viewer.eligibility.is18) return { ok: false, reason: 'underage', roomId };
 
   // Invariants 1 and 2: age is settled for the whole chain before any guest
   // pass is consulted, so no pass can influence an age denial. It also comes
   // before the phase check: a barrier that can't be overcome is reported over
   // one that is only "not yet".
   for (const room of chain) {
-    if (age < room.access.minAge) return { ok: false, reason: 'underage', roomId: room.id };
+    if (!meetsAge(viewer.eligibility, room.access.minAge)) return { ok: false, reason: 'underage', roomId: room.id };
   }
 
   if (!isOpen(state, roomId)) {

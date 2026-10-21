@@ -37,29 +37,29 @@ export const MOCK_MEMBERS: readonly PublicMember[] = [
   { id: 'm-leo', displayName: 'Leo', campus: 'USC' },
 ];
 
-/** Viewers covering each access case. DOBs chosen to stay valid through 2027. */
+/** Viewers covering each access case. Eligibility stands in for what the server computes from DOB. */
 export const MOCK_VIEWERS = {
   over21WithSuitePass: {
     profile: { id: 'v-jordan', displayName: 'Jordan', campus: 'Howard' },
-    dob: '2003-04-12',
+    eligibility: { is18: true, is21: true },
     eduVerified: true,
     guestPasses: [{ roomId: 'suite', expiresAt: PASS_EXPIRY }],
   },
   over21NoPass: {
     profile: { id: 'v-sam', displayName: 'Sam', campus: 'Texas' },
-    dob: '2002-11-30',
+    eligibility: { is18: true, is21: true },
     eduVerified: true,
     guestPasses: [],
   },
   under21WithSuitePass: {
     profile: { id: 'v-riley', displayName: 'Riley', campus: 'UCLA' },
-    dob: '2007-06-01',
+    eligibility: { is18: true, is21: false },
     eduVerified: true,
     guestPasses: [{ roomId: 'suite', expiresAt: PASS_EXPIRY }],
   },
   unverified: {
     profile: { id: 'v-casey', displayName: 'Casey', campus: 'Michigan' },
-    dob: '2001-02-14',
+    eligibility: { is18: true, is21: true },
     eduVerified: false,
     guestPasses: [],
   },
