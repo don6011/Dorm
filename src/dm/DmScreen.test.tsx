@@ -6,8 +6,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 
-import { MOCK_DM_INCOMING, MOCK_VIEWERS } from '../data/mock.ts';
+import { MOCK_DM_INCOMING, MOCK_VIEWERS, TEST_TIMES } from '../data/mock.ts';
 import { DevRoot } from '../dev/DevRoot.tsx';
+import { formatTime } from '../explore/labels.ts';
 import { goTo, nav, person, renderApp, sheet } from '../testing/renderApp.tsx';
 
 afterEach(cleanup);
@@ -163,6 +164,18 @@ test("a blocked or muted member's unread doesn't light the tab", () => {
     assert.equal(tabDot(), false, action);
     cleanup();
   }
+});
+
+test('timestamps are grouped: one stamp per group, never one per bubble', () => {
+  renderApp();
+  goTo('Messages');
+  open('Dev');
+  const conversation = dm()!;
+  const stamps = [...conversation.querySelectorAll('.dm-stamp')].map((s) => s.textContent);
+  const ago = (minutes: number) => TEST_TIMES.live - minutes * 60_000;
+  // Nine days back (two messages, 25 minutes apart, one group), two days back, tonight.
+  assert.deepEqual(stamps, [`Oct 6, ${formatTime(ago(9 * 1440))}`, `Tuesday ${formatTime(ago(2 * 1440))}`, formatTime(ago(40))]);
+  assert.equal(conversation.querySelectorAll('.bubble').length, 4);
 });
 
 test('Escape closes the conversation', () => {

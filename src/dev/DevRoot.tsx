@@ -13,8 +13,8 @@ import { formatTime } from '../explore/labels.ts';
 
 import App from '../App.tsx';
 import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_DM_INCOMING, MOCK_DM_READ, MOCK_DMS, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY,
-  MOCK_PRESENCE, MOCK_VIEWERS, nextNightAfter, tonight,
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_DM_INCOMING, MOCK_DM_READ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY,
+  MOCK_PRESENCE, MOCK_VIEWERS, mockDms, nextNightAfter, tonight,
 } from '../data/mock.ts';
 import { SocialProvider, useSocial } from '../social/SocialProvider.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
@@ -87,7 +87,7 @@ export function DevRoot() {
       clock={clock}
     >
       <MockNight />
-      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} dms={MOCK_DMS} readThrough={MOCK_DM_READ}>
+      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} dms={mockDms(clock())} readThrough={MOCK_DM_READ}>
         <ChatProvider initial={MOCK_CHAT}>
           <App />
         </ChatProvider>

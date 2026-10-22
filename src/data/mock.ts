@@ -126,20 +126,27 @@ export const MOCK_CONNECTIONS: Record<string, ConnectionStatus> = {
 const T0 = new Date(2026, 9, 15, 22).getTime();
 
 /**
- * Direct messages with the viewer's connections, oldest first. `withId` is the
+ * Direct messages with the viewer's connections, oldest first, timed back from
+ * `now` so every stamp format shows (today, this week, older). `withId` is the
  * other member; anything not from them is the viewer's, whoever is signed in.
  * Aaliyah's latest is unread; Dev's conversation has been read.
  */
-export const MOCK_DMS: readonly DirectMessage[] = [
-  { id: 'd1', withId: 'm-dev', authorId: 'm-dev', body: 'you coming through tonight?', sentAt: T0 - 40 * 60_000 },
-  { id: 'd2', withId: 'm-dev', authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 },
-  { id: 'd3', withId: 'm-aaliyah', authorId: 'v-jordan', body: 'which room are you starting in', sentAt: T0 - 12 * 60_000 },
-  { id: 'd4', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'set times are up https://example.com/tonight', sentAt: T0 - 6 * 60_000 },
-  { id: 'd5', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'you on the floor yet?', sentAt: T0 - 4 * 60_000 },
-];
+export function mockDms(now: number): DirectMessage[] {
+  const ago = (minutes: number) => now - minutes * 60_000;
+  const days = (n: number) => n * 24 * 60;
+  return [
+    { id: 'd1', withId: 'm-dev', authorId: 'm-dev', body: 'good seeing you last week', sentAt: ago(days(9)) },
+    { id: 'd2', withId: 'm-dev', authorId: 'v-jordan', body: 'same, come through again', sentAt: ago(days(9) - 25) },
+    { id: 'd3', withId: 'm-dev', authorId: 'm-dev', body: 'you coming through tonight?', sentAt: ago(days(2)) },
+    { id: 'd4', withId: 'm-dev', authorId: 'v-jordan', body: 'see you upstairs later', sentAt: ago(40) },
+    { id: 'd5', withId: 'm-aaliyah', authorId: 'v-jordan', body: 'which room are you starting in', sentAt: ago(12) },
+    { id: 'd6', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'set times are up https://example.com/tonight', sentAt: ago(6) },
+    { id: 'd7', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'you on the floor yet?', sentAt: ago(4) },
+  ];
+}
 
 /** Read marks at sign-in: conversation → last message read. */
-export const MOCK_DM_READ: Record<string, string> = { 'm-dev': 'd2' };
+export const MOCK_DM_READ: Record<string, string> = { 'm-dev': 'd4' };
 
 /** What the dev panel's "Receive a message" sends, in turn, from the viewer's connections. */
 export const MOCK_DM_INCOMING = ['you still out?', 'come find me on the roof', 'this DJ is not missing tonight'] as const;

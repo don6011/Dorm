@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DM_READ, MOCK_DMS, MOCK_INVITES, MOCK_MEMBERS, MOCK_PRESENCE, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES,
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DM_READ, MOCK_INVITES, MOCK_MEMBERS, MOCK_PRESENCE, MOCK_VIEWERS, mockDms, TEST_NIGHT, TEST_TIMES,
 } from '../data/mock.ts';
 import { MAX_MESSAGE_LENGTH } from '../chat/chat.ts';
 import { createVenueState, venueReducer, type Viewer } from '../venue/machine.ts';
@@ -11,7 +11,7 @@ import {
   visibleInvites, visibleMembers, visibleMessages, visibleThreads, type DirectMessage, type SocialAction, type SocialState,
 } from './social.ts';
 
-const start = () => createSocialState({ connections: MOCK_CONNECTIONS, dms: MOCK_DMS, readThrough: MOCK_DM_READ });
+const start = () => createSocialState({ connections: MOCK_CONNECTIONS, dms: mockDms(TEST_TIMES.live), readThrough: MOCK_DM_READ });
 const run = (s: SocialState, ...actions: SocialAction[]) => actions.reduce(socialReducer, s);
 
 /** Everywhere a member can surface today, as ids. */
