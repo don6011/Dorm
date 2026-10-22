@@ -52,7 +52,7 @@ Do not add features outside this list. If something seems missing, ask.
 - **Rule 3 lives in the machine, scoped to items and menus.** `canSeeAlcohol` decides whether alcohol-identified *items and menus* render; `visibleMenu` applies it and is the **only** gate (the menu component doesn't re-check). Every menu goes through it, including The Suite's. Menus are display only: no ordering or prices in V1. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
 - **Headcounts: show occupancy for barriers you can overcome, hide it for barriers you can't.** A pass, .edu verification or a full room can be overcome, so the count shows. Age can't, so it's hidden: show the lock, not the party. This lives in `showsHeadcount` in the machine. Access reports age before "closed", so the permanent barrier is the one shown.
 - **Locked and closed rooms stay visible.** The Suite shows a 21+ lock to under-21 members, never hidden. Rooms closed at After Hours show dimmed beneath a divider, so it reads as the night moving, not the app shrinking.
-- **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce.
+- **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce. "Sign in as" goes through the account service (`signInAs` makes the same kind of session sign-in does); `?viewer=` does the same on load.
 - **Safety actions.** One person sheet. Tapping any person on any surface opens it; block, mute and report live there (two taps total). Every person-tap routes to it — no per-card safety icons.
   - Block acts on the second tap, closes the sheet and shows an Undo toast for a few seconds; it never asks to confirm. Mute and Report confirm with a line in the sheet. The member acted on is never told.
   - Block hides a member from People, room rosters and avatars, threads, every chat and invitations, and ends the connection (Undo restores it). Mute hides only their messages, in every chat including DMs.
@@ -65,6 +65,15 @@ Do not add features outside this list. If something seems missing, ask.
   - Threads are derived from the messages, minus blocked members. Blocking closes an open conversation; Undo puts you back in it with its history. Mute hides their messages there as in every chat.
   - Unread: a visible message from them after the read mark; muted members' messages never count. A dot on the row and on the Messages tab; opening the thread clears both.
   - The dev panel's "Receive a message" sends the next line from a sign-in connection as `dmReceived`. It has no rule of its own; the store's drop rules decide.
+  - Timestamps are grouped, never one per bubble: a stamp above the first message, after a 30-minute gap, or when the day changes. "9:42 PM" today, "Friday 9:42 PM" within the last six days, "Oct 9, 9:42 PM" before that (year added if not this year). Calendar days, on the night's clock. `src/dm/stamps.ts`.
+- **Arrival and signup.** First visit opens on arrival (art, logo, **Get on the list**, **Sign in**). Signup is a state machine (`src/account/signup.ts`): screens show it, never decide it, and no step can be skipped.
+  - Both buttons share one flow: .edu email, then a 6-digit emailed code (mock; the dev panel shows it). After the code, an existing account signs in and a new email carries on, whichever button was pressed. The app never reveals whether an email has an account.
+  - .edu means the domain ends in `.edu`: `school.edu.au` and `school.edu.evil.com` are refused, with "Use your school email. It ends in .edu."
+  - Nothing past the code step without the server's verification token; the server's `checkAge` refuses without one too.
+  - Date of birth: confirm sheet first ("Is that right? You can't change it later."), then sent once. Only `is18` / `is21` come back; the app never keeps the date (not in state, storage or the session). Under 18 gets a kind, plain no, and the email is remembered as refused: a flag on the email only, never the date of birth or any date. Corrections go through support.
+  - Profile: display name 2–24 characters, campus suggested from the email domain (editable), photo or letter monogram. The viewer's own avatar is always the brand purple.
+  - Agree: the community guidelines, the non-affiliation line, and Terms and Privacy links (placeholders). I agree creates the account; eligibility comes from the server's own check, never from the app. Then into tonight's Home.
+  - Sessions persist on the device (only the token is stored, `SESSION_KEY`), so a reload stays signed in. **Sign out** on Me forgets it and returns to arrival.
 - **Room screens.** One generic `RoomScreen` driven by each room's record (art, crowd phrase, `scene` layout, `palette`); Main Floor's Double Halo and hotspots are data on its record; After Hours uses the `midnight` palette (indigo, never gold). Home shows `homeRoom`: the room you're in, else the room that closed on you, else the open lobby; otherwise the doors screen (before doors) or the closing screen (after close). Back goes to the parent room (The Bar → Main Floor), else the open lobby, else Leave.
   - Locked doors explain in place via `lockedReason`: "The Suite is 21+." only ever reaches under-21 members; 21+ without a pass reads "Entry by guest pass." Age is never the headline for them.
   - "N from your campus" is derived (`campusCount`): members in the room who share your campus, minus blocked. Hidden at 0. Never invented.
@@ -78,6 +87,14 @@ Do not add features outside this list. If something seems missing, ask.
 - **Repos.** `don6011/Dorm` is the base. The Lovable prototype (`don6011/the-dorm-experience`) and the zipped "the-dorm v1" build are parts bins only: port pieces one at a time (chat sheet, keyboard fix, offline outbox, service seam) when we reach them, never wholesale.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
+## Open items
+
+- **Photo moderation.** Uploaded profile photos stay on the device in the mock. Once the backend stores them, other members see them, so they need moderation alongside Report.
+- **Terms and Privacy.** The agree step links to placeholders; the real documents are in legal review.
+- **Age on birthdays.** The real server keeps the date of birth privately so `is21` flips on a member's 21st birthday. The mock keeps no date at all, so its flags are fixed at signup.
+- **Codes.** Expiry and attempt limits belong to the backend; the mock only replaces a code with the next one and uses each once.
+- **Who grants Suite passes**, and **push** for reminders (both noted above).
+
 ## Visual identity
 
 - Neon purple is the primary. Gold is reserved for VIP / The Suite and must not be used for ordinary UI accents.
@@ -88,7 +105,7 @@ Do not add features outside this list. If something seems missing, ask.
 - Room art lives in `src/assets/rooms/<room.art>.webp` and is picked up by file name; a missing file falls back to a gradient tile. Status:
   - In: Main Floor, The Bar, Rooftop, The Suite (from the Lovable prototype).
   - Needs a 1024px regeneration: The Bar and The Suite (current files are the 768px "-young" versions).
-  - Being regenerated separately: Suite Booth, The Spot, After Hours, and the arrival scene.
+  - Being regenerated separately: Suite Booth, The Spot, After Hours, and the arrival scene (it drops in as `src/assets/arrival.webp`; arrival shows a gradient until then).
 
 ## How to work in this repo
 
@@ -115,10 +132,11 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/venue/VenueProvider.tsx` — `useVenue()` for screens. Screens show `canEnter` reasons; they never re-express a rule.
 - `src/social/social.ts` — connections, mute, block (with undo), report, direct messages (`sendDm`, `dmReceived`, `readThread`; `canMessage`, `conversation`, `hasUnread`, `anyUnread`), and the selectors every surface filters through (`visibleMembers`, `visibleMessages`, `visibleThreads`, `visibleInvites`). The only place block/mute and messaging rules live. `SocialProvider.tsx` exposes it with the member directory and `sendDm`.
 - `src/people/` — `PersonTap` (the only way members render; variants row, avatar, name, header), `PersonSheet` (the one sheet + Undo toast), `ThreadRow` (a Messages row).
-- `src/dm/DmScreen.tsx` — the conversation screen.
+- `src/dm/DmScreen.tsx` — the conversation screen; `stamps.ts` — grouped timestamps.
+- `src/account/` — `service.ts` (the account seam: the contract a Supabase version implements later), `signup.ts` (the signup machine and its rules: `isEduEmail`, `nameError`, `campusError`), `AccountProvider.tsx` (session, restore on reload, sign out), `Signup.tsx` (`AccountGate`, arrival and every step), `photo.ts`.
 - `src/nav/BottomNav.tsx`, `src/tabs/Tabs.tsx` — the four tabs. `hidden` on the nav is for open chat sheets and conversations; `dots` marks a tab (unread messages).
 - `src/rooms/` — `RoomScreen` (scene, halo, hotspots, context, action), `SuiteScreen` (The Suite + Booth), `DoorSheet` (pass rooms), `Menu.tsx` (one menu for The Bar and The Suite), `navigation.ts` (`backTarget`, `opensDoor`), `lineup.ts`, `art.ts` (art by file name, `inSuite`). Menu and door sheets render into `<body>` so they sit above the bottom nav.
 - `src/chat/` — `chat.ts` (posting rule: only in the room you're in), `ChatProvider`, `ChatDrawer` (ported from the zip), `useKeyboardInset` (iOS keyboard).
-- `src/testing/renderApp.tsx` — test harness that wires the whole app on mock data.
-- `src/data/mock.ts` — the only fixture file, including direct messages (`MOCK_DMS`, read marks `MOCK_DM_READ`, the dev panel's `MOCK_DM_INCOMING`), the schedule (`NIGHT_HOURS`, `LAST_CALL_MINUTES`) and the mock crowd per phase (`mockCrowd`). `src/data/MockNight.tsx` applies it when the night changes.
+- `src/testing/renderApp.tsx` — test harness that wires the whole app on mock data. `renderAccount.tsx` wires arrival and signup over the mock server, with inspectable device storage (`memoryStorage.ts`) and `reload()`.
+- `src/data/mock.ts` — the only fixture file, including sign-in emails (`MOCK_ACCOUNTS`), campus suggestions (`MOCK_CAMPUS_DOMAINS`), direct messages (`mockDms(now)`, read marks `MOCK_DM_READ`, the dev panel's `MOCK_DM_INCOMING`), the schedule (`NIGHT_HOURS`, `LAST_CALL_MINUTES`) and the mock crowd per phase (`mockCrowd`). `src/data/MockNight.tsx` applies it when the night changes. `mockService.ts` is the account server stand-in (on the device; keeps no date of birth); `MockVenue.tsx` is the venue tree for a signed-in session.
 - Tests: `npm test` (vitest; dev-only, pinned). Component tests opt into a DOM with a `// @vitest-environment jsdom` first line. Lint: `npm run lint` (oxlint, from the starter).
