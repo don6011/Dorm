@@ -1,18 +1,28 @@
 import { useCallback, useState } from 'react';
 
 import logo from '../../design/logo-white.webp';
+import type { DrawerSize } from '../chat/ChatDrawer.tsx';
+import { RoomScreen } from '../rooms/RoomScreen.tsx';
 import { describeDenial } from '../explore/labels.ts';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
 import { visibleMembers, visibleMessages, visibleThreads } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
-import { presenceOf } from '../venue/machine.ts';
+import { homeRoom, presenceOf } from '../venue/machine.ts';
 import { getRoom } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 
 const PHASE_LABEL = { closed: 'Doors closed', live: 'Live now', afterHours: 'After Hours' } as const;
 
-export function HomeTab() {
+/** Home shows the scene of the room you're in, or Main Floor when it's open; otherwise the doors screen. */
+export function HomeTab({ chat, onChat }: { chat: DrawerSize; onChat: (size: DrawerSize) => void }) {
+  const { state } = useVenue();
+  const room = homeRoom(state);
+  if (room !== null) return <RoomScreen key={room} roomId={room} chat={chat} onChat={onChat} />;
+  return <DoorsScreen />;
+}
+
+function DoorsScreen() {
   const { state, dispatch } = useVenue();
   const [exploring, setExploring] = useState(false);
   const closeExplore = useCallback(() => setExploring(false), []);

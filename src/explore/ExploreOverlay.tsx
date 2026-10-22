@@ -3,17 +3,8 @@ import { useEffect, useRef } from 'react';
 import { canEnter, isOpen, opensAt, showsHeadcount, type VenueState } from '../venue/machine.ts';
 import { ROOMS, type Room } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
+import { artUrl, inSuite } from '../rooms/art.ts';
 import { roomStatus } from './labels.ts';
-
-// Room art drops in by file name: src/assets/rooms/<room.art>.webp (or .png/.jpg).
-// Missing art falls back to a gradient tile.
-const ART = Object.fromEntries(
-  Object.entries(
-    import.meta.glob<string>('../assets/rooms/*.{webp,png,jpg}', { eager: true, import: 'default' }),
-  ).map(([path, url]) => [path.replace(/^.*\/|\.\w+$/g, ''), url]),
-);
-
-const SUITE_ART = new Set(['suite', 'suite-booth']);
 
 const TOP_LEVEL = ROOMS.filter((r) => r.parent === null);
 const childrenOf = (id: Room['id']) => ROOMS.filter((r) => r.parent === id);
@@ -92,11 +83,11 @@ function RoomRow({ room, state, onJoin }: { room: Room; state: VenueState; onJoi
   const canJoin = status.tone === 'go';
   const count = showsHeadcount(state, room.id) ? (state.occupancy[room.id] ?? 0) : null;
   const djHere = state.dj && state.dj.roomId === room.id && isOpen(state, room.id) ? state.dj : null;
-  const art = ART[room.art];
+  const art = artUrl(room);
 
   return (
     <button
-      className={`room-row${SUITE_ART.has(room.art) ? ' room-row--suite' : ''}${room.parent ? ' room-row--child' : ''}`}
+      className={`room-row${inSuite(room.id) ? ' room-row--suite' : ''}${room.parent ? ' room-row--child' : ''}`}
       onClick={canJoin ? () => onJoin(room) : undefined}
       aria-disabled={!canJoin}
       aria-label={[room.label, status.pill, status.note].filter(Boolean).join('. ')}

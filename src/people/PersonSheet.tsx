@@ -94,9 +94,15 @@ function PersonSheet(props: { memberId: string; onClose: () => void; onBlock: ()
 
   useEffect(() => {
     headingRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture phase, and stop there: Escape closes this sheet only, not the
+    // chat drawer or overlay underneath it.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
   const status = connectionStatus(state, m.id);

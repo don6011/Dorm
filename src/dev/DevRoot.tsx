@@ -9,8 +9,9 @@
 import { useMemo, useState } from 'react';
 
 import App from '../App.tsx';
-import { MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from '../data/mock.ts';
+import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from '../data/mock.ts';
 import { SocialProvider } from '../social/SocialProvider.tsx';
+import { ChatProvider } from '../chat/ChatProvider.tsx';
 import type { NightSchedule } from '../venue/machine.ts';
 import { getRoom } from '../venue/rooms.ts';
 import { useVenue, VenueProvider } from '../venue/VenueProvider.tsx';
@@ -70,7 +71,9 @@ export function DevRoot() {
       clock={clock}
     >
       <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
-        <App />
+        <ChatProvider initial={MOCK_CHAT}>
+          <App />
+        </ChatProvider>
       </SocialProvider>
       <DevPanel
         viewerKey={viewerKey}

@@ -8,51 +8,32 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 
-import App from '../App.tsx';
-import {
-  MOCK_CONNECTIONS, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES,
-} from '../data/mock.ts';
+import { MOCK_VIEWERS } from '../data/mock.ts';
 import { BottomNav } from '../nav/BottomNav.tsx';
-import { SocialProvider } from '../social/SocialProvider.tsx';
-import type { Viewer } from '../venue/machine.ts';
-import { VenueProvider } from '../venue/VenueProvider.tsx';
+import { goTo, people, person, renderApp, sheet } from '../testing/renderApp.tsx';
 
 afterEach(cleanup);
 
-function renderApp(viewer: Viewer = MOCK_VIEWERS.over21WithSuitePass) {
-  render(
-    <VenueProvider
-      viewer={viewer}
-      schedule={TEST_NIGHT}
-      occupancy={MOCK_OCCUPANCY}
-      presence={MOCK_PRESENCE}
-      clock={() => TEST_TIMES.live}
-    >
-      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
-        <App />
-      </SocialProvider>
-    </VenueProvider>,
-  );
-}
+const joinFloor = () => fireEvent.click(screen.getByRole('button', { name: 'Join the floor' }));
 
-const goTo = (tab: 'Home' | 'People' | 'Messages' | 'Me') =>
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: tab }));
-const person = (name: string) => screen.queryByRole('button', { name: `${name}, open profile` });
-const sheet = () => screen.queryByRole('dialog');
-
-/** Every surface that shows other members today, and someone who appears on it. */
+/** Every surface that shows other members, how to get there, and someone on it. */
 const SURFACES = [
-  { tab: 'People', name: 'Marcus' },
-  { tab: 'People', name: 'Dev' },
-  { tab: 'Messages', name: 'Aaliyah' },
+  { where: 'People row', name: 'Marcus', open: () => goTo('People') },
+  { where: 'People row, presence masked', name: 'Dev', open: () => goTo('People') },
+  { where: 'Messages thread', name: 'Aaliyah', open: () => goTo('Messages') },
+  { where: 'Main Floor roster avatar', name: 'Kofi', open: () => {} },
+  { where: 'chat author avatar', name: 'Jade', open: joinFloor },
+  { where: 'chat author name', name: 'Jade', open: joinFloor, pick: 1 },
 ] as const;
 
-for (const { tab, name } of SURFACES) {
+for (const surface of SURFACES) {
+  const { where, name, open } = surface;
+  const pick = 'pick' in surface ? surface.pick : 0;
   for (const action of ['Mute', 'Block', 'Report'] as const) {
-    test(`${tab}: ${action} ${name} takes two taps`, () => {
+    test(`${where}: ${action} ${name} takes two taps`, () => {
       renderApp();
-      goTo(tab);
-      fireEvent.click(person(name)!); // tap 1
+      open();
+      fireEvent.click(people(name)[pick]); // tap 1
       const dialog = sheet()!;
       assert.ok(dialog !== null, 'sheet opened');
       fireEvent.click(within(dialog).getByRole('button', { name: action })); // tap 2
@@ -95,7 +76,7 @@ test('mute hides their messages but keeps them listed', () => {
 });
 
 test('the sheet never reveals age: a Suite member reads "In The Dorm" to an under-21 viewer', () => {
-  renderApp(MOCK_VIEWERS.under21WithSuitePass);
+  renderApp({ viewer: MOCK_VIEWERS.under21WithSuitePass });
   goTo('People');
   const row = person('Dev')!;
   within(row).getByText('In The Dorm');

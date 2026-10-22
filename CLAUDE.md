@@ -51,6 +51,11 @@ Do not add features outside this list. If something seems missing, ask.
   - Block hides a member from People, room rosters and avatars, threads, every chat and invitations, and ends the connection (Undo restores it). Mute hides only their messages, in every chat including DMs.
   - Members render only through `PersonTap` in `src/people/`; a test fails if a member's name is rendered anywhere else.
 - **Presence never reveals age.** A member in The Suite or the Suite Booth shows as "In The Dorm" to anyone outside that age-gated area: People rows, the person sheet, invitations, threads, everywhere presence appears. `presenceOf` in the machine decides it. The person sheet never shows age, DOB or 21+ status.
+- **Room screens.** One generic `RoomScreen` driven by each room's record (art, crowd phrase, `scene` layout); Main Floor's Double Halo and hotspots are data on its record. Home shows the room you're in, or Main Floor when it's open (`homeRoom`); otherwise the doors screen. Back goes to the parent room (The Bar → Main Floor), else Main Floor if open, else Leave.
+  - Locked doors explain in place via `lockedReason`: "The Suite is 21+." only ever reaches under-21 members; 21+ without a pass reads "Entry by guest pass." Age is never the headline for them.
+  - "N from your campus" is derived (`campusCount`): members in the room who share your campus, minus blocked. Hidden at 0. Never invented.
+  - The Double Halo ticker is built from tonight's programming only (`lineup`), never member data, so no school names.
+  - Chat drawer: peek / half / full; the bottom nav hides at half and full. Escape on the person sheet closes only the sheet.
 - **Repos.** `don6011/Dorm` is the base. The Lovable prototype (`don6011/the-dorm-experience`) and the zipped "the-dorm v1" build are parts bins only: port pieces one at a time (chat sheet, keyboard fix, offline outbox, service seam) when we reach them, never wholesale.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
@@ -92,5 +97,8 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/social/social.ts` — connections, mute, block (with undo), report, and the selectors every surface filters through (`visibleMembers`, `visibleMessages`, `visibleThreads`, `visibleInvites`). The only place block/mute rules live. `SocialProvider.tsx` exposes it with the member directory.
 - `src/people/` — `PersonTap` (the only way members render), `PersonSheet` (the one sheet + Undo toast).
 - `src/nav/BottomNav.tsx`, `src/tabs/Tabs.tsx` — the four tabs. `hidden` on the nav is for open chat sheets.
+- `src/rooms/` — `RoomScreen` (scene, halo, hotspots, context, action), `lineup.ts`, `art.ts` (art by file name, `inSuite`).
+- `src/chat/` — `chat.ts` (posting rule: only in the room you're in), `ChatProvider`, `ChatDrawer` (ported from the zip), `useKeyboardInset` (iOS keyboard).
+- `src/testing/renderApp.tsx` — test harness that wires the whole app on mock data.
 - `src/data/mock.ts` — the only fixture file.
 - Tests: `npm test` (vitest; dev-only, pinned). Component tests opt into a DOM with a `// @vitest-environment jsdom` first line. Lint: `npm run lint` (oxlint, from the starter).
