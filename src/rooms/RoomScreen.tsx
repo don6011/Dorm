@@ -11,26 +11,24 @@ import { lockedReason } from '../explore/labels.ts';
 import { PersonTap } from '../people/PersonTap.tsx';
 import { campusCount, roomRoster } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
-import { canEnter, isOpen, showsHeadcount, type VenueState } from '../venue/machine.ts';
-import { getRoom, LOBBY_ID, type Hotspot, type Room, type RoomId } from '../venue/rooms.ts';
+import { canEnter, showsHeadcount } from '../venue/machine.ts';
+import { getRoom, LOBBY_ID, type Hotspot, type RoomId } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 import { artUrl, inSuite } from './art.ts';
+import { DoorSheet } from './DoorSheet.tsx';
 import { lineup } from './lineup.ts';
+import { MenuSheet } from './Menu.tsx';
+import { backTarget, opensDoor } from './navigation.ts';
 
 const ROSTER_SHOWN = 5;
 const REASON_MS = 3500;
-
-/** Where "back" goes: the parent room (The Bar → Main Floor), else the lobby if open. */
-function backTarget(state: VenueState, room: Room): RoomId | null {
-  if (room.parent) return room.parent;
-  if (room.id !== LOBBY_ID && isOpen(state, LOBBY_ID)) return LOBBY_ID;
-  return null;
-}
 
 export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: DrawerSize; onChat: (size: DrawerSize) => void }) {
   const { state, dispatch } = useVenue();
   const social = useSocial();
   const [exploring, setExploring] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasMenu = (state.menus[roomId] ?? []).length > 0;
   const room = getRoom(roomId);
   const inside = state.location === roomId;
   const art = artUrl(room);
@@ -125,6 +123,11 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
               {joinReason}
             </p>
           )}
+          {hasMenu && (
+            <button className="btn menu-button" onClick={() => setMenuOpen(true)}>
+              Menu
+            </button>
+          )}
           <button className="text-button explore-link" onClick={() => setExploring(true)}>
             Explore The Dorm
           </button>
@@ -139,6 +142,7 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
         ))}
 
       {exploring && <ExploreOverlay onClose={() => setExploring(false)} />}
+      {menuOpen && <MenuSheet roomId={roomId} onClose={() => setMenuOpen(false)} />}
     </section>
   );
 }
@@ -147,6 +151,7 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
 function HotspotDoor({ hotspot, onEnter }: { hotspot: Hotspot & { roomId: RoomId }; onEnter: () => void }) {
   const { state } = useVenue();
   const [reason, setReason] = useState<string | null>(null);
+  const [door, setDoor] = useState(false);
   const target = getRoom(hotspot.roomId);
   const access = canEnter(state, target.id);
   const ageLocked = !access.ok && access.reason === 'underage';
@@ -163,7 +168,11 @@ function HotspotDoor({ hotspot, onEnter }: { hotspot: Hotspot & { roomId: RoomId
     <div className="hotspot-wrap" style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}>
       <button
         className={`hotspot${inSuite(target.id) ? ' hotspot--suite' : ''}${access.ok ? '' : ' hotspot--locked'}`}
-        onClick={() => (access.ok ? onEnter() : setReason(lockedReason(state, access, target.id)))}
+        onClick={() => {
+          if (access.ok) onEnter();
+          else if (opensDoor(state, target.id)) setDoor(true);
+          else setReason(lockedReason(state, access, target.id));
+        }}
         aria-label={`${target.label}${suffix ? `, ${ageLocked ? '21 plus' : `${suffix} here`}` : ''}${access.ok ? '' : ', locked'}`}
       >
         {access.ok ? <span className="live-dot" aria-hidden="true" /> : <span aria-hidden="true">🔒︎</span>}
@@ -175,6 +184,7 @@ function HotspotDoor({ hotspot, onEnter }: { hotspot: Hotspot & { roomId: RoomId
           {reason}
         </p>
       )}
+      {door && <DoorSheet roomId={target.id} onClose={() => setDoor(false)} onEntered={() => setDoor(false)} />}
     </div>
   );
 }

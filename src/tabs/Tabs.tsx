@@ -2,7 +2,9 @@ import { useCallback, useState } from 'react';
 
 import logo from '../../design/logo-white.webp';
 import type { DrawerSize } from '../chat/ChatDrawer.tsx';
+import { inSuite } from '../rooms/art.ts';
 import { RoomScreen } from '../rooms/RoomScreen.tsx';
+import { SuiteScreen } from '../rooms/SuiteScreen.tsx';
 import { describeDenial, formatTime } from '../explore/labels.ts';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
@@ -18,6 +20,7 @@ const PHASE_LABEL = { closed: 'Doors closed', live: 'Live now', afterHours: 'Aft
 export function HomeTab({ chat, onChat }: { chat: DrawerSize; onChat: (size: DrawerSize) => void }) {
   const { state } = useVenue();
   const room = homeRoom(state);
+  if (room !== null && inSuite(room)) return <SuiteScreen key={room} roomId={room} chat={chat} onChat={onChat} />;
   if (room !== null) return <RoomScreen key={room} roomId={room} chat={chat} onChat={onChat} />;
   return <DoorsScreen />;
 }

@@ -5,21 +5,27 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import App from '../App.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS,
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS,
   TEST_NIGHT, TEST_TIMES,
 } from '../data/mock.ts';
 import { SocialProvider } from '../social/SocialProvider.tsx';
 import type { Viewer } from '../venue/machine.ts';
+import type { RoomId } from '../venue/rooms.ts';
 import { VenueProvider } from '../venue/VenueProvider.tsx';
 
-export function renderApp({ viewer = MOCK_VIEWERS.over21WithSuitePass, now = TEST_TIMES.live }: { viewer?: Viewer; now?: number } = {}) {
+export function renderApp({
+  viewer = MOCK_VIEWERS.over21WithSuitePass,
+  now = TEST_TIMES.live,
+  occupancy = {},
+}: { viewer?: Viewer; now?: number; occupancy?: Partial<Record<RoomId, number>> } = {}) {
   render(
     <VenueProvider
       viewer={viewer}
       schedule={TEST_NIGHT}
-      occupancy={MOCK_OCCUPANCY}
+      occupancy={{ ...MOCK_OCCUPANCY, ...occupancy }}
       dj={MOCK_DJ}
       presence={MOCK_PRESENCE}
+      menus={MOCK_MENUS}
       clock={() => now}
     >
       <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>

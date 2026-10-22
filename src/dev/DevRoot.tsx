@@ -9,7 +9,7 @@
 import { useMemo, useState } from 'react';
 
 import App from '../App.tsx';
-import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from '../data/mock.ts';
+import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from '../data/mock.ts';
 import { SocialProvider } from '../social/SocialProvider.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import type { NightSchedule } from '../venue/machine.ts';
@@ -70,6 +70,7 @@ export function DevRoot() {
       occupancy={MOCK_OCCUPANCY}
       dj={MOCK_DJ}
       presence={MOCK_PRESENCE}
+      menus={MOCK_MENUS}
       clock={clock}
     >
       <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
@@ -97,7 +98,7 @@ function DevPanel(props: {
   open: boolean;
   onToggle: () => void;
 }) {
-  const { dispatch } = useVenue();
+  const { state, dispatch } = useVenue();
   const { open } = props;
   const booth = getRoom('suite-booth');
 
@@ -128,6 +129,11 @@ function DevPanel(props: {
           </label>
           <button onClick={() => dispatch({ type: 'occupancy', counts: { [booth.id]: booth.capacity ?? 0 } })}>
             Fill {booth.label}
+          </button>
+          {/* Stands in for whoever grants Suite passes (undecided). The machine
+              re-checks 21+, so this does nothing for an under-21 viewer. */}
+          <button onClick={() => dispatch({ type: 'passGranted', pass: { roomId: 'suite', expiresAt: state.schedule.closesAt } })}>
+            Grant Suite pass
           </button>
         </div>
       )}

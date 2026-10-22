@@ -1,7 +1,7 @@
 // All mock data lives here. Nothing else in src/ defines fixtures.
 
 import type { RoomId } from '../venue/rooms.ts';
-import type { DjSet, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
+import type { DjSet, MenuItem, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
 import type { ConnectionStatus } from '../social/social.ts';
 
 /** Doors 9 PM, After Hours at midnight, close 3 AM — local time. */
@@ -43,6 +43,7 @@ export const MOCK_MEMBERS: readonly PublicMember[] = [
   { id: 'm-nia', displayName: 'Nia', campus: 'Spelman' },
   { id: 'm-ben', displayName: 'Ben', campus: 'Michigan' },
   { id: 'm-zoe', displayName: 'Zoe', campus: 'Texas' },
+  { id: 'm-ava', displayName: 'Ava', campus: 'Howard' },
 ];
 
 /** Where each mock member is tonight. m-dev and m-imani are in 21+ rooms. */
@@ -60,6 +61,7 @@ export const MOCK_PRESENCE: Readonly<Record<string, RoomId | null>> = {
   'm-nia': 'main-floor',
   'm-ben': 'main-floor',
   'm-zoe': 'bar',
+  'm-ava': 'suite',
 };
 
 /** Viewers covering each access case. Eligibility stands in for what the server computes from DOB. */
@@ -121,7 +123,7 @@ export const MOCK_THREADS = [
   { memberId: 'm-dev', last: { authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 } },
 ];
 
-/** Room chat. The Spot, The Suite and After Hours start empty. */
+/** Room chat. The Spot and After Hours start empty. */
 export const MOCK_CHAT = [
   { id: 'c1', roomId: 'main-floor', authorId: 'm-aaliyah', body: 'this set is unreal', sentAt: T0 - 90_000 },
   { id: 'c2', roomId: 'main-floor', authorId: 'm-marcus', body: 'who else is here from Texas', sentAt: T0 - 60_000 },
@@ -129,9 +131,33 @@ export const MOCK_CHAT = [
   { id: 'c4', roomId: 'main-floor', authorId: 'm-jade', body: 'run it back DJ', sentAt: T0 - 30_000 },
   { id: 'c5', roomId: 'bar', authorId: 'm-zoe', body: 'end of the bar if anyone wants to talk', sentAt: T0 - 120_000 },
   { id: 'c6', roomId: 'rooftop', authorId: 'm-jade', body: 'the view up here though', sentAt: T0 - 200_000 },
+  { id: 'c7', roomId: 'suite', authorId: 'm-dev', body: 'quieter up here, I like it', sentAt: T0 - 150_000 },
+  { id: 'c8', roomId: 'suite', authorId: 'm-ava', body: 'anyone else from Howard made it up?', sentAt: T0 - 80_000 },
+  { id: 'c9', roomId: 'suite-booth', authorId: 'm-imani', body: 'room for two more in the booth', sentAt: T0 - 50_000 },
 ] as const;
 
 /** Invitations to a room. Not rendered yet; the block rule already covers them. */
 export const MOCK_INVITES = [
   { id: 'i1', fromId: 'm-marcus', roomId: 'rooftop', sentAt: T0 - 10 * 60_000 },
 ] as const;
+
+/**
+ * Menus, display only (no ordering or prices in V1). Generic drink names, no
+ * brands. Every item says whether it's alcohol-identified; those render only
+ * through canSeeAlcohol.
+ */
+export const MOCK_MENUS: Partial<Record<RoomId, readonly MenuItem[]>> = {
+  bar: [
+    { id: 'b1', name: 'Neon Spritz', detail: 'Grapefruit, tonic, rosemary', alcohol: false },
+    { id: 'b2', name: 'Late Pass', detail: 'Cold brew, oat milk, vanilla', alcohol: false },
+    { id: 'b3', name: 'Ginger Fizz', detail: 'Ginger, lime, soda', alcohol: false },
+    { id: 'b4', name: 'House Paloma', detail: 'Tequila, grapefruit, lime', alcohol: true },
+    { id: 'b5', name: 'Espresso Martini', detail: 'Vodka, espresso, coffee liqueur', alcohol: true },
+  ],
+  suite: [
+    { id: 's1', name: 'Gold Hour', detail: 'Honey, citrus, sparkling water', alcohol: false },
+    { id: 's2', name: 'Velvet Cola', detail: 'Cola, vanilla, cherry', alcohol: false },
+    { id: 's3', name: 'Suite Negroni', detail: 'Gin, bitter aperitivo, vermouth', alcohol: true },
+    { id: 's4', name: 'French 75', detail: 'Gin, lemon, sparkling wine', alcohol: true },
+  ],
+};

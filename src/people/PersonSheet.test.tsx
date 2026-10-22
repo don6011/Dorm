@@ -15,6 +15,12 @@ import { goTo, people, person, renderApp, sheet } from '../testing/renderApp.tsx
 afterEach(cleanup);
 
 const joinFloor = () => fireEvent.click(screen.getByRole('button', { name: 'Join the floor' }));
+const enterSuite = () => fireEvent.click(screen.getByRole('button', { name: /^The Suite/ }));
+const enterBooth = () => {
+  enterSuite();
+  fireEvent.click(screen.getByRole('button', { name: 'Join Suite Booth' }));
+};
+const openChat = (room: string) => fireEvent.click(screen.getByRole('button', { name: `Open ${room} chat` }));
 
 /** Every surface that shows other members, how to get there, and someone on it. */
 const SURFACES = [
@@ -24,6 +30,10 @@ const SURFACES = [
   { where: 'Main Floor roster avatar', name: 'Kofi', open: () => {} },
   { where: 'chat author avatar', name: 'Jade', open: joinFloor },
   { where: 'chat author name', name: 'Jade', open: joinFloor, pick: 1 },
+  { where: 'Suite roster avatar', name: 'Ava', open: enterSuite },
+  { where: 'Suite chat author', name: 'Dev', open: () => (enterSuite(), openChat('The Suite')) },
+  { where: 'Booth roster avatar', name: 'Imani', open: enterBooth },
+  { where: 'Booth chat author name', name: 'Imani', open: () => (enterBooth(), openChat('Suite Booth')), pick: 1 },
 ] as const;
 
 for (const surface of SURFACES) {

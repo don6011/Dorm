@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { canEnter, isOpen, opensAt, showsHeadcount, type VenueState } from '../venue/machine.ts';
 import { ROOMS, type Room } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 import { artUrl, inSuite } from '../rooms/art.ts';
+import { DoorSheet } from '../rooms/DoorSheet.tsx';
+import { opensDoor } from '../rooms/navigation.ts';
 import { roomStatus } from './labels.ts';
 
 const TOP_LEVEL = ROOMS.filter((r) => r.parent === null);
@@ -30,6 +32,7 @@ export function ExploreOverlay({ onClose }: { onClose: () => void }) {
   );
   const closed = TOP_LEVEL.filter((r) => !isOpen(state, r.id));
 
+  const [door, setDoor] = useState<Room['id'] | null>(null);
   const join = (room: Room) => {
     dispatch({ type: 'enter', roomId: room.id });
     onClose();
@@ -37,12 +40,12 @@ export function ExploreOverlay({ onClose }: { onClose: () => void }) {
 
   const group = (room: Room) => (
     <li key={room.id}>
-      <RoomRow room={room} state={state} onJoin={join} />
+      <RoomRow room={room} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} />
       {childrenOf(room.id).length > 0 && (
         <ul className="explore-children">
           {childrenOf(room.id).map((child) => (
             <li key={child.id}>
-              <RoomRow room={child} state={state} onJoin={join} />
+              <RoomRow room={child} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} />
             </li>
           ))}
         </ul>
@@ -74,13 +77,26 @@ export function ExploreOverlay({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
+      {door && <DoorSheet roomId={door} onClose={() => setDoor(null)} onEntered={onClose} />}
     </div>
   );
 }
 
-function RoomRow({ room, state, onJoin }: { room: Room; state: VenueState; onJoin: (room: Room) => void }) {
+function RoomRow({
+  room,
+  state,
+  onJoin,
+  onDoor,
+}: {
+  room: Room;
+  state: VenueState;
+  onJoin: (room: Room) => void;
+  onDoor: (room: Room) => void;
+}) {
   const status = roomStatus(state, room.id);
   const canJoin = status.tone === 'go';
+  // A pass room you could get into (request a pass, waitlist) opens its door.
+  const door = !canJoin && opensDoor(state, room.id);
   const count = showsHeadcount(state, room.id) ? (state.occupancy[room.id] ?? 0) : null;
   const djHere = state.dj && state.dj.roomId === room.id && isOpen(state, room.id) ? state.dj : null;
   const art = artUrl(room);
@@ -88,8 +104,8 @@ function RoomRow({ room, state, onJoin }: { room: Room; state: VenueState; onJoi
   return (
     <button
       className={`room-row${inSuite(room.id) ? ' room-row--suite' : ''}${room.parent ? ' room-row--child' : ''}`}
-      onClick={canJoin ? () => onJoin(room) : undefined}
-      aria-disabled={!canJoin}
+      onClick={canJoin ? () => onJoin(room) : door ? () => onDoor(room) : undefined}
+      aria-disabled={!canJoin && !door}
       aria-label={[room.label, status.pill, status.note].filter(Boolean).join('. ')}
     >
       <span className="room-tile" data-art={room.art} style={art ? { backgroundImage: `url(${art})` } : undefined} />

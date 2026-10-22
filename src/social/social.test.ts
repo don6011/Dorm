@@ -84,7 +84,7 @@ test('room roster: who is there, minus blocked; 21+ rooms stay masked from outsi
   assert.deepEqual(ids(roomRoster(venueAt(null), run(start(), { type: 'block', memberId: 'm-zoe' }), MOCK_MEMBERS, 'bar')), ['m-marcus']);
   assert.deepEqual(roomRoster(venueAt(null), start(), MOCK_MEMBERS, 'suite'), [], 'outside The Suite');
   assert.deepEqual(roomRoster(venueAt(null, MOCK_VIEWERS.under21WithSuitePass), start(), MOCK_MEMBERS, 'suite'), []);
-  assert.deepEqual(ids(roomRoster(venueAt('suite'), start(), MOCK_MEMBERS, 'suite')), ['m-dev'], 'inside it');
+  assert.deepEqual(ids(roomRoster(venueAt('suite'), start(), MOCK_MEMBERS, 'suite')), ['m-dev', 'm-ava'], 'inside it');
 });
 
 test('campus count: same campus, case-insensitive, blocked not counted, 0 when none', () => {

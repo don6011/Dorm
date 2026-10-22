@@ -42,7 +42,7 @@ Do not add features outside this list. If something seems missing, ask.
 - **After Hours concentrates the night.** When After Hours opens, Main Floor, The Bar, Rooftop and The Spot close. The Suite stays open. Expressed via each room's `openDuring`, not code.
 - **Cut from V1:** Open Circles, Music Trivia, Campus Clash. Rooms must not make games hard to add later (games would be their own records pointing at a room), but don't build them.
 - **Capacity rolls upward.** A room's capacity counts the room and everything beneath it (see the comment on `capacity` in `rooms.ts`). Not yet implemented.
-- **Rule 3 lives in the machine, scoped to items and menus.** A machine-owned check (planned name `canSeeAlcohol`) decides whether alcohol-identified *items and menus* render. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
+- **Rule 3 lives in the machine, scoped to items and menus.** `canSeeAlcohol` decides whether alcohol-identified *items and menus* render; `visibleMenu` applies it and is the **only** gate (the menu component doesn't re-check). Every menu goes through it, including The Suite's. Menus are display only: no ordering or prices in V1. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
 - **Headcounts: show occupancy for barriers you can overcome, hide it for barriers you can't.** A pass, .edu verification or a full room can be overcome, so the count shows. Age can't, so it's hidden: show the lock, not the party. This lives in `showsHeadcount` in the machine. Access reports age before "closed", so the permanent barrier is the one shown.
 - **Locked and closed rooms stay visible.** The Suite shows a 21+ lock to under-21 members, never hidden. Rooms closed at After Hours show dimmed beneath a divider, so it reads as the night moving, not the app shrinking.
 - **Dev tools dispatch through the machine.** The dev switcher may only use machine actions and `createVenueState` (which is what sign-in does). It never sets state directly, so it can't show a state the machine can't produce.
@@ -56,6 +56,11 @@ Do not add features outside this list. If something seems missing, ask.
   - "N from your campus" is derived (`campusCount`): members in the room who share your campus, minus blocked. Hidden at 0. Never invented.
   - The Double Halo ticker is built from tonight's programming only (`lineup`), never member data, so no school names.
   - Chat drawer: peek / half / full; the bottom nav hides at half and full. Escape on the person sheet closes only the sheet.
+- **The Suite.** Its own `SuiteScreen` (also used for the Suite Booth): gold, framed scene, no halo, small roster, a Booth card, a menu.
+  - The Suite Booth is reachable only from inside The Suite (`reachedFrom: 'parent'` on its record; refusal `throughParent`).
+  - 21+ without a pass (or with one when it's full) gets the **door sheet**: head count, never who is inside; "Request a pass" and "Join the waitlist" (waitlist only when full). Under-21 never gets a door: the lock and "The Suite is 21+." in place.
+  - `requestPass` / `joinWaitlist` are refused in the machine unless the refusal really is "needs a pass" (or "full" for the waitlist), so under-21 members can't request even by direct dispatch.
+  - `passGranted` stands in for the server's grant; it re-checks the room's age gate itself. Only the dev panel's "Grant Suite pass" sends it. **Who grants passes in production is an open product decision.**
 - **Repos.** `don6011/Dorm` is the base. The Lovable prototype (`don6011/the-dorm-experience`) and the zipped "the-dorm v1" build are parts bins only: port pieces one at a time (chat sheet, keyboard fix, offline outbox, service seam) when we reach them, never wholesale.
 - **Schools.** School name is a plain-text member attribute. No real school logos, marks or colors as brand elements. Every campus gets the same neutral token: a letter monogram in our palette. The About screen carries a non-affiliation line.
 
@@ -97,7 +102,7 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/social/social.ts` — connections, mute, block (with undo), report, and the selectors every surface filters through (`visibleMembers`, `visibleMessages`, `visibleThreads`, `visibleInvites`). The only place block/mute rules live. `SocialProvider.tsx` exposes it with the member directory.
 - `src/people/` — `PersonTap` (the only way members render), `PersonSheet` (the one sheet + Undo toast).
 - `src/nav/BottomNav.tsx`, `src/tabs/Tabs.tsx` — the four tabs. `hidden` on the nav is for open chat sheets.
-- `src/rooms/` — `RoomScreen` (scene, halo, hotspots, context, action), `lineup.ts`, `art.ts` (art by file name, `inSuite`).
+- `src/rooms/` — `RoomScreen` (scene, halo, hotspots, context, action), `SuiteScreen` (The Suite + Booth), `DoorSheet` (pass rooms), `Menu.tsx` (one menu for The Bar and The Suite), `navigation.ts` (`backTarget`, `opensDoor`), `lineup.ts`, `art.ts` (art by file name, `inSuite`). Menu and door sheets render into `<body>` so they sit above the bottom nav.
 - `src/chat/` — `chat.ts` (posting rule: only in the room you're in), `ChatProvider`, `ChatDrawer` (ported from the zip), `useKeyboardInset` (iOS keyboard).
 - `src/testing/renderApp.tsx` — test harness that wires the whole app on mock data.
 - `src/data/mock.ts` — the only fixture file.

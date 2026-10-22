@@ -53,12 +53,13 @@ test('under 21: The Suite door reads 21+, shows no count, and explains in place'
   assert.equal(heading(), 'Main Floor', 'did not move');
 });
 
-test('21+ without a pass: "Entry by guest pass", and age is never the headline', () => {
+test('21+ without a pass: the door sheet says "Entry by guest pass", and age is never the headline', () => {
   renderApp({ viewer: MOCK_VIEWERS.over21NoPass });
   assert.doesNotMatch(suiteDoor().textContent!, /21/);
   fireEvent.click(suiteDoor());
-  assert.equal(status(), 'Entry by guest pass.');
-  assert.equal(heading(), 'Main Floor');
+  const door = screen.getByRole('dialog', { name: 'The Suite' });
+  within(door).getByText('Entry by guest pass.');
+  assert.doesNotMatch(door.textContent!, /21\+|\bage\b|under/i);
 });
 
 test('21+ with a pass walks into The Suite; back returns to Main Floor', () => {
