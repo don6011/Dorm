@@ -100,6 +100,24 @@ export const MOCK_VIEWERS = {
   },
 } satisfies Record<string, Viewer>;
 
+/** Returning members who can sign in with an emailed code (mock accounts for the dev viewers). */
+export const MOCK_ACCOUNTS = {
+  'jordan@howard.edu': 'over21WithSuitePass',
+  'sam@utexas.edu': 'over21NoPass',
+  'riley@ucla.edu': 'under21WithSuitePass',
+} as const satisfies Record<string, keyof typeof MOCK_VIEWERS>;
+
+/** Campus suggested from an email's domain (subdomains match too). Plain names only, no marks. */
+export const MOCK_CAMPUS_DOMAINS: Record<string, string> = {
+  'howard.edu': 'Howard',
+  'utexas.edu': 'Texas',
+  'ucla.edu': 'UCLA',
+  'umich.edu': 'Michigan',
+  'spelman.edu': 'Spelman',
+  'famu.edu': 'FAMU',
+  'usc.edu': 'USC',
+};
+
 export const MOCK_DJ: DjSet = {
   name: 'DJ Elevate',
   genres: ['Hip Hop', 'Afrobeats', 'Amapiano'],

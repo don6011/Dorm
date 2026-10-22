@@ -10,6 +10,8 @@ export interface PublicMember {
   displayName: string;
   /** Plain text, e.g. "Howard". */
   campus: string;
+  /** Their own photo as a small image URL; without one, their letter monogram shows. */
+  photo?: string;
 }
 
 export interface GuestPass {
