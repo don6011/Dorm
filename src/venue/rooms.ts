@@ -10,6 +10,19 @@ export interface AccessRule {
   entry: 'open' | 'guestPass';
 }
 
+/** A door into another room, placed over this room's art (percent of the scene). */
+export interface Hotspot {
+  roomId: string;
+  x: number;
+  y: number;
+}
+
+export interface SceneLayout {
+  /** Draw the Double Halo with tonight's lineup over the art. */
+  halo?: boolean;
+  hotspots?: readonly Hotspot[];
+}
+
 export interface RoomRecord {
   id: string;
   label: string;
@@ -32,6 +45,9 @@ export interface RoomRecord {
   openDuring: readonly NightPhase[];
   /** Art key. Assets are resolved by screens, not here. */
   art: string;
+  /** How the headcount reads: "1,240 on the floor". */
+  crowd: string;
+  scene?: SceneLayout;
 }
 
 const RECORDS = [
@@ -44,6 +60,14 @@ const RECORDS = [
     access: { minAge: 18, entry: 'open' },
     openDuring: ['live'],
     art: 'main-floor',
+    crowd: 'on the floor',
+    scene: {
+      halo: true,
+      hotspots: [
+        { roomId: 'bar', x: 5, y: 37 },
+        { roomId: 'suite', x: 56, y: 27 },
+      ],
+    },
   },
   {
     id: 'bar',
@@ -54,6 +78,7 @@ const RECORDS = [
     access: { minAge: 18, entry: 'open' },
     openDuring: ['live'],
     art: 'bar',
+    crowd: 'at the bar',
   },
   {
     id: 'rooftop',
@@ -64,6 +89,7 @@ const RECORDS = [
     access: { minAge: 18, entry: 'open' },
     openDuring: ['live'],
     art: 'rooftop',
+    crowd: 'on the roof',
   },
   {
     id: 'suite',
@@ -74,6 +100,7 @@ const RECORDS = [
     access: { minAge: 21, entry: 'guestPass' },
     openDuring: ['live', 'afterHours'],
     art: 'suite',
+    crowd: 'in The Suite',
   },
   {
     id: 'suite-booth',
@@ -84,6 +111,7 @@ const RECORDS = [
     access: { minAge: 21, entry: 'open' },
     openDuring: ['live', 'afterHours'],
     art: 'suite-booth',
+    crowd: 'in the booth',
   },
   {
     id: 'spot',
@@ -94,6 +122,7 @@ const RECORDS = [
     access: { minAge: 18, entry: 'open' },
     openDuring: ['live'],
     art: 'spot',
+    crowd: 'at The Spot',
   },
   {
     id: 'after-hours',
@@ -104,6 +133,7 @@ const RECORDS = [
     access: { minAge: 18, entry: 'open' },
     openDuring: ['afterHours'],
     art: 'after-hours',
+    crowd: 'still up',
   },
 ] as const satisfies readonly RoomRecord[];
 
@@ -112,9 +142,13 @@ export type RoomId = (typeof RECORDS)[number]['id'];
 export interface Room extends RoomRecord {
   id: RoomId;
   parent: RoomId | null;
+  scene?: { halo?: boolean; hotspots?: readonly (Hotspot & { roomId: RoomId })[] };
 }
 
 export const ROOMS: readonly Room[] = RECORDS;
+
+/** Home shows this room's scene when you're in no room and it's open. */
+export const LOBBY_ID = 'main-floor' satisfies RoomId;
 
 /** The Suite is strictly 21+ (invariant 1). Checked below, not trusted. */
 export const SUITE_ID = 'suite' satisfies RoomId;
@@ -129,6 +163,17 @@ export function validateRooms(rooms: readonly RoomRecord[]): string[] {
     byId.set(room.id, room);
     if (room.capacity !== null && room.capacity < 1) {
       errors.push(`room "${room.id}" has capacity ${room.capacity}`);
+    }
+  }
+
+  for (const room of rooms) {
+    for (const h of room.scene?.hotspots ?? []) {
+      if (!byId.has(h.roomId) || h.roomId === room.id) {
+        errors.push(`room "${room.id}" has a hotspot to "${h.roomId}", which isn't another room`);
+      }
+      if (h.x < 0 || h.x > 100 || h.y < 0 || h.y > 100) {
+        errors.push(`room "${room.id}" has a hotspot to "${h.roomId}" off the scene (${h.x}, ${h.y})`);
+      }
     }
   }
 

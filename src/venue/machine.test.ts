@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
-import { canEnter, createVenueState, opensAt, presenceOf, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
+import { canEnter, createVenueState, homeRoom, opensAt, presenceOf, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
 import { ROOMS, validateRooms, type RoomId, type RoomRecord } from './rooms.ts';
 
 const ALL_ROOMS = ROOMS.map((r) => r.id);
@@ -256,4 +256,22 @@ test('presence in open rooms is shown to everyone; absent members are away', () 
   assert.deepEqual(presenceOf(s, 'm-aaliyah'), { kind: 'room', roomId: 'main-floor' });
   assert.deepEqual(presenceOf(s, 'm-leo'), { kind: 'away' });
   assert.deepEqual(presenceOf(s, 'nobody'), { kind: 'away' });
+});
+
+// --- Home scene + hotspots ------------------------------------------------
+
+
+test('homeRoom: where you are, else Main Floor when open, else none', () => {
+  const v = MOCK_VIEWERS.over21WithSuitePass;
+  assert.equal(homeRoom(stateFor(v)), 'main-floor');
+  assert.equal(homeRoom(venueReducer(stateFor(v), { type: 'enter', roomId: 'bar' })), 'bar');
+  assert.equal(homeRoom(stateFor(v, TEST_TIMES.beforeDoors)), null);
+  assert.equal(homeRoom(stateFor(v, TEST_TIMES.afterHours)), null, 'Main Floor closes at After Hours');
+});
+
+test('self-check rejects a hotspot to an unknown room, to itself, or off the scene', () => {
+  const withHotspot = (h: { roomId: string; x: number; y: number }) => edit('main-floor', { scene: { hotspots: [h] } });
+  assert.ok(validateRooms(withHotspot({ roomId: 'cellar', x: 10, y: 10 })).some((e) => e.includes('"cellar"')));
+  assert.ok(validateRooms(withHotspot({ roomId: 'main-floor', x: 10, y: 10 })).some((e) => e.includes("isn't another room")));
+  assert.ok(validateRooms(withHotspot({ roomId: 'bar', x: 120, y: 10 })).some((e) => e.includes('off the scene')));
 });

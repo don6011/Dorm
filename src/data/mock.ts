@@ -36,6 +36,13 @@ export const MOCK_MEMBERS: readonly PublicMember[] = [
   { id: 'm-dev', displayName: 'Dev', campus: 'Michigan' },
   { id: 'm-imani', displayName: 'Imani', campus: 'FAMU' },
   { id: 'm-leo', displayName: 'Leo', campus: 'USC' },
+  { id: 'm-kofi', displayName: 'Kofi', campus: 'Howard' },
+  { id: 'm-tre', displayName: 'Tre', campus: 'Howard' },
+  { id: 'm-sofia', displayName: 'Sofia', campus: 'Texas' },
+  { id: 'm-maya', displayName: 'Maya', campus: 'UCLA' },
+  { id: 'm-nia', displayName: 'Nia', campus: 'Spelman' },
+  { id: 'm-ben', displayName: 'Ben', campus: 'Michigan' },
+  { id: 'm-zoe', displayName: 'Zoe', campus: 'Texas' },
 ];
 
 /** Where each mock member is tonight. m-dev and m-imani are in 21+ rooms. */
@@ -46,6 +53,13 @@ export const MOCK_PRESENCE: Readonly<Record<string, RoomId | null>> = {
   'm-dev': 'suite',
   'm-imani': 'suite-booth',
   'm-leo': null,
+  'm-kofi': 'main-floor',
+  'm-tre': 'main-floor',
+  'm-sofia': 'main-floor',
+  'm-maya': 'main-floor',
+  'm-nia': 'main-floor',
+  'm-ben': 'main-floor',
+  'm-zoe': 'bar',
 };
 
 /** Viewers covering each access case. Eligibility stands in for what the server computes from DOB. */
@@ -107,11 +121,14 @@ export const MOCK_THREADS = [
   { memberId: 'm-dev', last: { authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 } },
 ];
 
-/** Room chat, for the Main Floor screen. */
+/** Room chat. The Spot, The Suite and After Hours start empty. */
 export const MOCK_CHAT = [
   { id: 'c1', roomId: 'main-floor', authorId: 'm-aaliyah', body: 'this set is unreal', sentAt: T0 - 90_000 },
   { id: 'c2', roomId: 'main-floor', authorId: 'm-marcus', body: 'who else is here from Texas', sentAt: T0 - 60_000 },
-  { id: 'c3', roomId: 'main-floor', authorId: 'm-jade', body: 'run it back DJ', sentAt: T0 - 30_000 },
+  { id: 'c3', roomId: 'main-floor', authorId: 'm-kofi', body: 'Howard where you at', sentAt: T0 - 45_000 },
+  { id: 'c4', roomId: 'main-floor', authorId: 'm-jade', body: 'run it back DJ', sentAt: T0 - 30_000 },
+  { id: 'c5', roomId: 'bar', authorId: 'm-zoe', body: 'end of the bar if anyone wants to talk', sentAt: T0 - 120_000 },
+  { id: 'c6', roomId: 'rooftop', authorId: 'm-jade', body: 'the view up here though', sentAt: T0 - 200_000 },
 ] as const;
 
 /** Invitations to a room. Not rendered yet; the block rule already covers them. */

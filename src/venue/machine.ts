@@ -2,7 +2,7 @@
 // access check. Screens read this; they never re-derive phase, location or
 // access themselves.
 
-import { getRoom, roomChain, type NightPhase, type RoomId } from './rooms.ts';
+import { getRoom, LOBBY_ID, roomChain, type NightPhase, type RoomId } from './rooms.ts';
 
 /** What any member may see about another member. No DOB, ever (invariant 4). */
 export interface PublicMember {
@@ -91,6 +91,16 @@ function meetsAge(eligibility: Eligibility, minAge: 18 | 21): boolean {
 
 function hasValidPass(viewer: Viewer, roomId: RoomId, now: number): boolean {
   return viewer.guestPasses.some((p) => p.roomId === roomId && p.expiresAt > now);
+}
+
+/**
+ * The room whose scene Home shows: where you are, or the lobby (Main Floor)
+ * when you're in no room and it's open. null = no room scene (before doors,
+ * or the lobby is closed and you haven't moved on).
+ */
+export function homeRoom(state: VenueState): RoomId | null {
+  if (state.location !== null) return state.location;
+  return isOpen(state, LOBBY_ID) ? LOBBY_ID : null;
 }
 
 /** Open in the current phase — the room and every ancestor. */

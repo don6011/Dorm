@@ -59,3 +59,26 @@ export function describeDenial(denial: Extract<Access, { ok: false }>): string {
       return 'Verify your .edu email to get in.';
   }
 }
+
+/**
+ * The one-line reason shown in place when a locked door is tapped. Age comes
+ * first in canEnter, so "is 21+" only ever reaches under-21 members; a 21+
+ * member without a pass reads "Entry by guest pass." and never sees age.
+ */
+export function lockedReason(state: VenueState, denial: Extract<Access, { ok: false }>, roomId: RoomId): string {
+  const label = getRoom(denial.roomId).label;
+  switch (denial.reason) {
+    case 'underage':
+      return `${label} is 21+.`;
+    case 'needsPass':
+      return 'Entry by guest pass.';
+    case 'full':
+      return `${label} is full right now.`;
+    case 'closed': {
+      const at = opensAt(state, roomId);
+      return at === null ? `${label} is closed for tonight.` : `Opens ${formatTime(at)}.`;
+    }
+    case 'unverified':
+      return 'Verify your .edu email to get in.';
+  }
+}

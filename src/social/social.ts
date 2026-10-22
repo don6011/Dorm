@@ -3,6 +3,9 @@
 // surface that shows members, messages or invitations filters through these
 // selectors.
 
+import { presenceOf, type PublicMember, type VenueState } from '../venue/machine.ts';
+import type { RoomId } from '../venue/rooms.ts';
+
 export type ConnectionStatus = 'none' | 'pending' | 'connected';
 
 export interface SocialState {
@@ -84,4 +87,21 @@ export function visibleInvites<T extends { fromId: string }>(state: SocialState,
 /** Message threads: blocked members' threads disappear. */
 export function visibleThreads<T extends { memberId: string }>(state: SocialState, threads: readonly T[]): T[] {
   return threads.filter((t) => !isBlocked(state, t.memberId));
+}
+
+/**
+ * Who the viewer sees in a room: there by presenceOf (so 21+ rooms stay
+ * masked to outsiders) and not blocked.
+ */
+export function roomRoster(venue: VenueState, state: SocialState, members: readonly PublicMember[], roomId: RoomId): PublicMember[] {
+  return visibleMembers(state, members).filter((m) => {
+    const where = presenceOf(venue, m.id);
+    return where.kind === 'room' && where.roomId === roomId;
+  });
+}
+
+/** "N from your campus": people in the room who share the viewer's campus. */
+export function campusCount(venue: VenueState, state: SocialState, members: readonly PublicMember[], roomId: RoomId): number {
+  const mine = venue.viewer.profile.campus.trim().toLowerCase();
+  return roomRoster(venue, state, members, roomId).filter((m) => m.campus.trim().toLowerCase() === mine).length;
 }
