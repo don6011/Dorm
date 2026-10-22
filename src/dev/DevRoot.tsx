@@ -34,7 +34,9 @@ function readParams(): { viewer: ViewerKey; time: TimeKey } {
   const time = q.get('time');
   return {
     viewer: viewer && viewer in MOCK_VIEWERS ? (viewer as ViewerKey) : 'over21WithSuitePass',
-    time: time && time in TIMES ? (time as TimeKey) : 'real',
+    // Previews open mid-night so the rooms are open whenever someone checks the
+    // link; "Real clock" is one tap away in the panel, or ?time=real.
+    time: time && time in TIMES ? (time as TimeKey) : 'live',
   };
 }
 
