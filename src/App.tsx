@@ -1,9 +1,12 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type { DrawerSize } from './chat/ChatDrawer.tsx';
 import { useKeyboardInset } from './chat/useKeyboardInset.ts';
-import { BottomNav, type Tab } from './nav/BottomNav.tsx';
+import { DmScreen } from './dm/DmScreen.tsx';
+import { BottomNav, tabLabel, type Tab } from './nav/BottomNav.tsx';
 import { PersonSheetProvider } from './people/PersonSheet.tsx';
+import { anyUnread, isBlocked } from './social/social.ts';
+import { useSocial } from './social/SocialProvider.tsx';
 import { HomeTab, MeTab, MessagesTab, PeopleTab } from './tabs/Tabs.tsx';
 import { homeRoom } from './venue/machine.ts';
 import { getRoom, type RoomId } from './venue/rooms.ts';
@@ -11,7 +14,11 @@ import { useVenue } from './venue/VenueProvider.tsx';
 
 function App() {
   const { state } = useVenue();
+  const { state: social } = useSocial();
   const [tab, setTab] = useState<Tab>('home');
+  // The open conversation sits over the tab it was opened from; Back returns there.
+  const [dm, setDm] = useState<string | null>(null);
+  const closeDm = useCallback(() => setDm(null), []);
   // The chat drawer belongs to one room; moving rooms or tabs drops it back to peek.
   const [chat, setChat] = useState<{ roomId: RoomId; size: Exclude<DrawerSize, 'peek'> } | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -22,20 +29,34 @@ function App() {
   const onChat = (size: DrawerSize) => setChat(size === 'peek' || room === null ? null : { roomId: room, size });
   const selectTab = (next: Tab) => {
     setChat(null);
+    setDm(null);
     setTab(next);
   };
+  // Blocking them closes the conversation; Undo puts you back in it.
+  const dmWith = dm !== null && !isBlocked(social, dm) ? dm : null;
 
   return (
-    <PersonSheetProvider onMessage={() => selectTab('messages')}>
+    <PersonSheetProvider onMessage={setDm}>
       <div className="app" ref={root}>
         <NoticeBar onGo={() => selectTab('home')} />
         <main className="app-body">
-          {tab === 'home' && <HomeTab chat={chatSize} onChat={onChat} />}
-          {tab === 'people' && <PeopleTab />}
-          {tab === 'messages' && <MessagesTab />}
-          {tab === 'me' && <MeTab />}
+          {dmWith !== null ? (
+            <DmScreen key={dmWith} memberId={dmWith} backLabel={tabLabel(tab)} onBack={closeDm} />
+          ) : (
+            <>
+              {tab === 'home' && <HomeTab chat={chatSize} onChat={onChat} />}
+              {tab === 'people' && <PeopleTab />}
+              {tab === 'messages' && <MessagesTab onOpen={setDm} />}
+              {tab === 'me' && <MeTab />}
+            </>
+          )}
         </main>
-        <BottomNav active={tab} onSelect={selectTab} hidden={chatSize !== 'peek'} />
+        <BottomNav
+          active={tab}
+          onSelect={selectTab}
+          hidden={chatSize !== 'peek' || dmWith !== null}
+          dots={anyUnread(social) ? { messages: 'Unread messages' } : {}}
+        />
       </div>
     </PersonSheetProvider>
   );

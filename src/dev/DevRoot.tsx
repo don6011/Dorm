@@ -5,14 +5,18 @@
 // fresh createVenueState (what sign-in does), time arrives as ticks from the
 // provider's clock, and headcounts arrive as `occupancy` actions. It never
 // sets state directly, so it can't show a state the machine can't produce.
+// Incoming direct messages arrive as `dmReceived`, through the store's drop rules.
 
 import { useMemo, useState } from 'react';
 
 import { formatTime } from '../explore/labels.ts';
 
 import App from '../App.tsx';
-import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_DMS, MOCK_DM_READ, MOCK_VIEWERS, nextNightAfter, tonight } from '../data/mock.ts';
-import { SocialProvider } from '../social/SocialProvider.tsx';
+import {
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_DM_INCOMING, MOCK_DM_READ, MOCK_DMS, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY,
+  MOCK_PRESENCE, MOCK_VIEWERS, nextNightAfter, tonight,
+} from '../data/mock.ts';
+import { SocialProvider, useSocial } from '../social/SocialProvider.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import type { NightSchedule } from '../venue/machine.ts';
 import { getRoom } from '../venue/rooms.ts';
@@ -20,6 +24,8 @@ import { MockNight } from '../data/MockNight.tsx';
 import { useVenue, VenueProvider } from '../venue/VenueProvider.tsx';
 
 type ViewerKey = keyof typeof MOCK_VIEWERS;
+
+const DM_SENDERS = Object.keys(MOCK_CONNECTIONS).filter((id) => MOCK_CONNECTIONS[id] === 'connected');
 
 const HOUR = 3_600_000;
 // Every preset is an offset from the schedule, and its label shows the time it
@@ -85,16 +91,16 @@ export function DevRoot() {
         <ChatProvider initial={MOCK_CHAT}>
           <App />
         </ChatProvider>
+        <DevPanel
+          viewerKey={viewerKey}
+          onViewer={setViewerKey}
+          timeKey={timeKey}
+          onTime={onTime}
+          schedule={schedule}
+          open={panelOpen}
+          onToggle={() => setPanelOpen(!panelOpen)}
+        />
       </SocialProvider>
-      <DevPanel
-        viewerKey={viewerKey}
-        onViewer={setViewerKey}
-        timeKey={timeKey}
-        onTime={onTime}
-        schedule={schedule}
-        open={panelOpen}
-        onToggle={() => setPanelOpen(!panelOpen)}
-      />
     </VenueProvider>
   );
 }
@@ -109,8 +115,21 @@ function DevPanel(props: {
   onToggle: () => void;
 }) {
   const { state, dispatch } = useVenue();
+  const social = useSocial();
   const { open } = props;
   const booth = getRoom('suite-booth');
+  const [received, setReceived] = useState(0);
+
+  // Stands in for the server: the next of your connections (as of sign-in)
+  // sends the next line. Whether it lands is the store's call, not the panel's:
+  // a member you've blocked since is dropped like any other message from them.
+  const receive = () => {
+    const from = DM_SENDERS[received % DM_SENDERS.length];
+    const body = MOCK_DM_INCOMING[received % MOCK_DM_INCOMING.length];
+    social.dispatch({ type: 'dmReceived', message: { id: `dev-dm-${received + 1}`, withId: from, authorId: from, body, sentAt: state.now } });
+    setReceived(received + 1);
+  };
+  const lastId = `dev-dm-${received}`;
 
   return (
     <aside className="dev-panel" data-open={open}>
@@ -145,6 +164,10 @@ function DevPanel(props: {
           <button onClick={() => dispatch({ type: 'passGranted', pass: { roomId: 'suite', expiresAt: state.schedule.closesAt } })}>
             Grant Suite pass
           </button>
+          <button onClick={receive}>Receive a message</button>
+          {received > 0 && (
+            <span role="status">{social.state.dms.some((m) => m.id === lastId) ? 'Delivered' : 'Dropped: blocked or not connected'}</span>
+          )}
         </div>
       )}
     </aside>

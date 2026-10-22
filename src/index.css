@@ -456,6 +456,22 @@ body {
   filter: drop-shadow(0 0 6px var(--purple-glow));
 }
 
+.bottom-nav-tab {
+  position: relative;
+}
+
+.nav-dot {
+  position: absolute;
+  top: 10px;
+  left: calc(50% + 8px);
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--purple);
+  box-sizing: content-box;
+}
+
 /* ---- Tabs ---------------------------------------------------------- */
 
 .tab {
@@ -1780,4 +1796,110 @@ button:focus-visible {
   background: none;
   color: var(--text-dim);
   cursor: pointer;
+}
+
+/* ---- Messages: thread rows and the conversation ------------------- */
+
+.thread-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 0 0 0 8px;
+  border: 1px solid rgba(166, 77, 255, 0.18);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.thread-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+  padding: 10px 14px 10px 6px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.unread-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--purple);
+  box-shadow: 0 0 8px var(--purple-glow);
+}
+
+.thread-open:has(.unread-dot) .person-row-name {
+  font-weight: 800;
+}
+
+.thread-open:has(.unread-dot) .preview {
+  color: var(--text);
+}
+
+/* Full height over the tab it came from. bottom: --kb keeps the composer
+   above the iOS keyboard; Android resizes the layout itself. */
+.dm {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--kb, 0px);
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  background: var(--bg);
+}
+
+.kb-open .dm {
+  padding-bottom: 0;
+}
+
+.dm-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(243, 238, 252, 0.08);
+}
+
+.person-header {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dm .msg {
+  max-width: 80%;
+}
+
+.dm .msg--mine {
+  align-self: flex-end;
+}
+
+.dm-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
 }

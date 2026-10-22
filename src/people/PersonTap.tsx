@@ -52,7 +52,7 @@ export function PresenceChip({ memberId }: { memberId: string }) {
   return <span className={`presence presence--${view.kind}`}>{presenceText(view)}</span>;
 }
 
-type Variant = 'row' | 'avatar' | 'name';
+type Variant = 'row' | 'avatar' | 'name' | 'header';
 
 export function PersonTap({
   member,
@@ -72,6 +72,18 @@ export function PersonTap({
     return (
       <button className="person-avatar" onClick={onClick} aria-label={label}>
         <Avatar member={member} />
+      </button>
+    );
+  }
+  if (variant === 'header') {
+    // A conversation's header: who it's with and where, masked like everywhere else.
+    return (
+      <button className="person-header" onClick={onClick} aria-label={label}>
+        <Avatar member={member} size={36} />
+        <span className="person-row-text">
+          <span className="person-row-name">{member.displayName}</span>
+          <PresenceChip memberId={member.id} />
+        </span>
       </button>
     );
   }

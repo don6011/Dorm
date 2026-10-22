@@ -8,7 +8,8 @@ import { SuiteScreen } from '../rooms/SuiteScreen.tsx';
 import { describeDenial, formatTime } from '../explore/labels.ts';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
-import { isMuted, visibleMembers, visibleThreads } from '../social/social.ts';
+import { ThreadRow } from '../people/ThreadRow.tsx';
+import { isMuted, visibleMembers, visibleThreads, type Thread } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
 import { canRemind, homeRoom, nightOver, opensAt, presenceOf } from '../venue/machine.ts';
 import { getRoom, LOBBIES } from '../venue/rooms.ts';
@@ -124,25 +125,28 @@ export function PeopleTab() {
   );
 }
 
-export function MessagesTab() {
+export function MessagesTab({ onOpen }: { onOpen: (memberId: string) => void }) {
   const { state, member } = useSocial();
-  const shown = visibleThreads(state);
+  const threads = visibleThreads(state);
+  const preview = (t: Thread) => {
+    if (isMuted(state, t.memberId)) return 'Muted';
+    if (!t.last) return 'No messages yet';
+    return t.last.authorId === t.memberId ? t.last.body : `You: ${t.last.body}`;
+  };
 
   return (
     <section className="tab" aria-labelledby="messages-title">
       <h1 id="messages-title" className="tab-title">Messages</h1>
-      {shown.length === 0 ? (
+      {threads.length === 0 ? (
         <p className="empty">No messages yet. Connect with someone to start talking.</p>
       ) : (
         <ul className="list">
-          {shown.map((t) => {
+          {threads.map((t) => {
             const m = member(t.memberId);
             if (!m) return null;
             return (
               <li key={t.memberId}>
-                <PersonTap member={m}>
-                  <span className="preview">{isMuted(state, t.memberId) ? 'Muted' : t.last?.body}</span>
-                </PersonTap>
+                <ThreadRow member={m} preview={preview(t)} unread={t.unread} onOpen={() => onOpen(m.id)} />
               </li>
             );
           })}

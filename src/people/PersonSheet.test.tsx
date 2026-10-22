@@ -26,7 +26,9 @@ const openChat = (room: string) => fireEvent.click(screen.getByRole('button', { 
 const SURFACES = [
   { where: 'People row', name: 'Marcus', open: () => goTo('People') },
   { where: 'People row, presence masked', name: 'Dev', open: () => goTo('People') },
-  { where: 'Messages thread', name: 'Aaliyah', open: () => goTo('Messages') },
+  { where: 'Messages row avatar', name: 'Aaliyah', open: () => goTo('Messages') },
+  { where: 'conversation header', name: 'Aaliyah', open: () => (goTo('Messages'), fireEvent.click(screen.getByRole('button', { name: /^Conversation with Aaliyah/ }))) },
+  { where: 'conversation header, presence masked', name: 'Dev', open: () => (goTo('Messages'), fireEvent.click(screen.getByRole('button', { name: /^Conversation with Dev/ }))) },
   { where: 'Main Floor roster avatar', name: 'Kofi', open: () => {} },
   { where: 'chat author avatar', name: 'Jade', open: joinFloor },
   { where: 'chat author name', name: 'Jade', open: joinFloor, pick: 1 },
