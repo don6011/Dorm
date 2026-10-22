@@ -30,7 +30,7 @@ test('Home shows the Main Floor scene when it is open, and the doors screen befo
   screen.getByText(/^Doors open 9:00\sPM$/);
   cleanup();
   renderApp({ now: TEST_TIMES.afterClose });
-  screen.getByText('Doors closed');
+  screen.getByText("That's the night.");
 });
 
 test('Join the floor enters, opens the chat and hides the nav; collapsing brings it back', () => {

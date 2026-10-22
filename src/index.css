@@ -277,7 +277,7 @@ body {
   background-image: linear-gradient(135deg, #3b6bff, #6a2bd1 55%, #160b2c);
 }
 .room-tile[data-art='after-hours'] {
-  background-image: radial-gradient(circle at 70% 30%, #ff3d7f, #5a1b8f 55%, #0d0618);
+  background-image: radial-gradient(circle at 70% 30%, #4f6bff, #1e1b6e 55%, #060a1c);
 }
 
 .room-text {
@@ -835,7 +835,7 @@ button:focus-visible {
   background: linear-gradient(160deg, #3b6bff, #4a1f99 45%, var(--bg));
 }
 .scene[data-art='after-hours'] {
-  background: radial-gradient(circle at 70% 25%, #ff3d7f, #4a1680 45%, var(--bg));
+  background: radial-gradient(circle at 70% 22%, #3f5cff, #1a1a66 42%, #060a1c 75%);
 }
 .scene[data-art='suite-booth'] {
   background: radial-gradient(circle at 35% 30%, #8a6326, #2a1a08 50%, var(--bg));
@@ -1610,4 +1610,174 @@ button:focus-visible {
 .menu-sheet--suite h2,
 .menu-sheet--suite .menu-section h3 {
   color: var(--suite-gold);
+}
+
+/* ---- After Hours and the night's transitions --------------------------- */
+
+/* Midnight palette (After Hours): indigo and midnight blue, never gold. */
+.room-screen[data-palette='midnight'] {
+  --accent: #7d8cff;
+  background: #060a1c;
+}
+
+.room-screen[data-palette='midnight'] .scrim-bottom {
+  background: linear-gradient(transparent, rgba(6, 10, 28, 0.85) 40%, #060a1c);
+}
+
+.room-screen[data-palette='midnight'] .live-dot {
+  background: #7d8cff;
+  box-shadow: 0 0 8px #7d8cff;
+}
+
+.room-screen[data-palette='midnight'] .cta {
+  background: linear-gradient(90deg, #3a3fd6, #6f7dff);
+  box-shadow: 0 0 24px rgba(111, 125, 255, 0.45);
+}
+
+.room-screen[data-palette='midnight'] .explore-link,
+.room-screen[data-palette='midnight'] .room-tagline-lg {
+  color: #aeb8ff;
+}
+
+.room-screen[data-palette='midnight'] .chat-peek {
+  border-color: rgba(125, 140, 255, 0.45);
+  background: rgba(8, 12, 34, 0.94);
+}
+
+/* A room that has closed for the night: the scene dims, the chat is read-only. */
+.room-screen--closed .scene {
+  filter: grayscale(0.6) brightness(0.45);
+}
+
+.closed-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  align-self: stretch;
+}
+
+.closed-panel p {
+  margin: 0;
+  color: #d9cdee;
+  font-weight: 600;
+}
+
+.chat-closed {
+  margin: 0;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(243, 238, 252, 0.08);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.last-call {
+  align-self: stretch;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+  border: 1px solid rgba(125, 140, 255, 0.6);
+  border-radius: 12px;
+  background: rgba(10, 12, 40, 0.9);
+  color: #dfe3ff;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.upcoming {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  align-self: stretch;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid rgba(125, 140, 255, 0.45);
+  border-radius: 14px;
+  background: rgba(10, 12, 40, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.upcoming-text {
+  color: #dfe3ff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.upcoming-remind {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+
+.upcoming-remind[aria-pressed='true'] {
+  border-color: #7d8cff;
+  color: #aeb8ff;
+}
+
+/* End of night */
+.closing-title {
+  margin: 12px 0 0;
+  font-size: 28px;
+}
+
+.next-night {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 22px;
+  padding: 14px 22px;
+  border: 1px solid rgba(166, 77, 255, 0.35);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.next-when {
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+/* Fired reminder (mock for a push notification) */
+.notice-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 398px;
+  margin: 0 auto;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid rgba(125, 140, 255, 0.6);
+  border-radius: 16px;
+  background: #0d1030;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.notice-text {
+  flex: 1;
+  font-weight: 700;
+}
+
+.notice-go {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #6f7dff;
+  color: #fff;
+  font: 700 13.5px var(--sans);
+  cursor: pointer;
+}
+
+.notice-dismiss {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
 }

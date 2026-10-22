@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { canEnter, isOpen, opensAt, showsHeadcount, type VenueState } from '../venue/machine.ts';
+import { canEnter, canRemind, isOpen, opensAt, showsHeadcount, type VenueState } from '../venue/machine.ts';
 import { ROOMS, type Room } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 import { artUrl, inSuite } from '../rooms/art.ts';
@@ -40,12 +40,12 @@ export function ExploreOverlay({ onClose }: { onClose: () => void }) {
 
   const group = (room: Room) => (
     <li key={room.id}>
-      <RoomRow room={room} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} />
+      <RoomRow room={room} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} onRemind={(r) => dispatch({ type: 'remind', roomId: r.id })} />
       {childrenOf(room.id).length > 0 && (
         <ul className="explore-children">
           {childrenOf(room.id).map((child) => (
             <li key={child.id}>
-              <RoomRow room={child} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} />
+              <RoomRow room={child} state={state} onJoin={join} onDoor={(r) => setDoor(r.id)} onRemind={(r) => dispatch({ type: 'remind', roomId: r.id })} />
             </li>
           ))}
         </ul>
@@ -87,16 +87,22 @@ function RoomRow({
   state,
   onJoin,
   onDoor,
+  onRemind,
 }: {
   room: Room;
   state: VenueState;
   onJoin: (room: Room) => void;
   onDoor: (room: Room) => void;
+  onRemind: (room: Room) => void;
 }) {
   const status = roomStatus(state, room.id);
   const canJoin = status.tone === 'go';
   // A pass room you could get into (request a pass, waitlist) opens its door.
   const door = !canJoin && opensDoor(state, room.id);
+  // A room opening later tonight: tapping sets (or clears) a reminder.
+  const reminded = state.reminders.includes(room.id);
+  const remindable = !canJoin && !door && (reminded || canRemind(state, room.id));
+  const note = remindable ? (reminded ? 'Reminder set' : 'Tap for a reminder') : status.note;
   const count = showsHeadcount(state, room.id) ? (state.occupancy[room.id] ?? 0) : null;
   const djHere = state.dj && state.dj.roomId === room.id && isOpen(state, room.id) ? state.dj : null;
   const art = artUrl(room);
@@ -104,15 +110,18 @@ function RoomRow({
   return (
     <button
       className={`room-row${inSuite(room.id) ? ' room-row--suite' : ''}${room.parent ? ' room-row--child' : ''}`}
-      onClick={canJoin ? () => onJoin(room) : door ? () => onDoor(room) : undefined}
-      aria-disabled={!canJoin && !door}
-      aria-label={[room.label, status.pill, status.note].filter(Boolean).join('. ')}
+      onClick={
+        canJoin ? () => onJoin(room) : door ? () => onDoor(room) : remindable ? () => onRemind(room) : undefined
+      }
+      aria-disabled={!canJoin && !door && !remindable}
+      aria-pressed={remindable ? reminded : undefined}
+      aria-label={[room.label, status.pill, note].filter(Boolean).join('. ')}
     >
       <span className="room-tile" data-art={room.art} style={art ? { backgroundImage: `url(${art})` } : undefined} />
       <span className="room-text">
         <span className="room-label">{room.label}</span>
         <span className="room-tagline">{room.tagline}</span>
-        {status.note && <span className="room-note">{status.note}</span>}
+        {note && <span className="room-note">{note}</span>}
         {(count !== null || djHere) && (
           <span className="room-meta">
             {count !== null && (

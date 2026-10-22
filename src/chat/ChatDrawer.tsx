@@ -9,7 +9,7 @@ import { visibleMessages } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
 import type { Room } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
-import { MAX_MESSAGE_LENGTH } from './chat.ts';
+import { canPost, MAX_MESSAGE_LENGTH } from './chat.ts';
 import { useChat } from './ChatProvider.tsx';
 
 export type DrawerSize = 'peek' | 'half' | 'full';
@@ -46,6 +46,8 @@ export function ChatDrawer({ room, size, onSize }: { room: Room; size: Exclude<D
   const { send } = useChat();
   const msgs = useRoomMessages(room);
   const me = state.viewer.profile;
+  // Closed rooms are read-only: the history stays, the composer goes.
+  const readOnly = !canPost(state, room.id);
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -143,6 +145,11 @@ export function ChatDrawer({ room, size, onSize }: { room: Room; size: Exclude<D
         })}
       </div>
 
+      {readOnly ? (
+        <p className="chat-closed" role="status">
+          This room has closed for the night
+        </p>
+      ) : (
       <form className="composer" onSubmit={submit}>
         <label htmlFor={`composer-${room.id}`} className="sr-only">
           Message {room.label}
@@ -161,6 +168,7 @@ export function ChatDrawer({ room, size, onSize }: { room: Room; size: Exclude<D
           ➤
         </button>
       </form>
+      )}
     </div>
   );
 }

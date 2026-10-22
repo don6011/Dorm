@@ -1,33 +1,48 @@
-// Test harness: the whole app wired like main.tsx, on mock data and a fixed clock.
+// Test harness: the whole app wired like main.tsx, on mock data and a clock the
+// test controls. Time moves only through the machine's own `tick` action.
 
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { useEffect, type Dispatch } from 'react';
 
 import App from '../App.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS,
-  TEST_NIGHT, TEST_TIMES,
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS,
+  MOCK_VIEWERS, nextNightAfter, TEST_NIGHT, TEST_TIMES,
 } from '../data/mock.ts';
+import { MockNight } from '../data/MockNight.tsx';
 import { SocialProvider } from '../social/SocialProvider.tsx';
-import type { Viewer } from '../venue/machine.ts';
+import type { NightSchedule, VenueAction, Viewer } from '../venue/machine.ts';
 import type { RoomId } from '../venue/rooms.ts';
-import { VenueProvider } from '../venue/VenueProvider.tsx';
+import { useVenue, VenueProvider } from '../venue/VenueProvider.tsx';
 
 export function renderApp({
   viewer = MOCK_VIEWERS.over21WithSuitePass,
   now = TEST_TIMES.live,
   occupancy = {},
-}: { viewer?: Viewer; now?: number; occupancy?: Partial<Record<RoomId, number>> } = {}) {
+  schedule = TEST_NIGHT,
+}: { viewer?: Viewer; now?: number; occupancy?: Partial<Record<RoomId, number>>; schedule?: NightSchedule } = {}) {
+  const machine: { dispatch: Dispatch<VenueAction> } = { dispatch: () => {} };
+  function Grab() {
+    const { dispatch } = useVenue();
+    useEffect(() => {
+      machine.dispatch = dispatch;
+    }, [dispatch]);
+    return null;
+  }
   render(
     <VenueProvider
       viewer={viewer}
-      schedule={TEST_NIGHT}
+      schedule={schedule}
       occupancy={{ ...MOCK_OCCUPANCY, ...occupancy }}
       dj={MOCK_DJ}
       presence={MOCK_PRESENCE}
       menus={MOCK_MENUS}
+      nextNight={nextNightAfter(schedule)}
       clock={() => now}
     >
+      <Grab />
+      <MockNight />
       <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
         <ChatProvider initial={MOCK_CHAT}>
           <App />
@@ -35,6 +50,10 @@ export function renderApp({
       </SocialProvider>
     </VenueProvider>,
   );
+  return {
+    /** Move the night's clock, the way the provider's ticks do. */
+    tick: (at: number) => act(() => machine.dispatch({ type: 'tick', now: at })),
+  };
 }
 
 export const nav = () => screen.queryByRole('navigation', { name: 'Main' });

@@ -1,7 +1,7 @@
 // Room chat. Who may post where is decided here; who is hidden (mute, block)
 // is decided in social.ts and applied when messages render.
 
-import type { VenueState } from '../venue/machine.ts';
+import { isOpen, type VenueState } from '../venue/machine.ts';
 import type { RoomId } from '../venue/rooms.ts';
 
 export const MAX_MESSAGE_LENGTH = 500;
@@ -20,9 +20,9 @@ export interface ChatState {
 
 export type ChatAction = { type: 'send'; message: ChatMessage };
 
-/** You can post only in the room you're in. */
+/** You can post only in the room you're in, and only while it's open. Closed rooms are read-only. */
 export function canPost(venue: VenueState, roomId: RoomId): boolean {
-  return venue.location === roomId;
+  return venue.location === roomId && isOpen(venue, roomId);
 }
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {

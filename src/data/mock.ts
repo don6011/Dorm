@@ -1,20 +1,28 @@
 // All mock data lives here. Nothing else in src/ defines fixtures.
 
-import type { RoomId } from '../venue/rooms.ts';
-import type { DjSet, MenuItem, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
+import { getRoom, ROOMS, type RoomId } from '../venue/rooms.ts';
+import type { DjSet, MenuItem, NextNight, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
 import type { ConnectionStatus } from '../social/social.ts';
 
-/** Doors 9 PM, After Hours at midnight, close 3 AM — local time. */
-export function buildNightSchedule(nightOf: Date): NightSchedule {
+/**
+ * The night's schedule, local time: doors 21:00, After Hours 24:00, close 27:00
+ * (3 AM next day), last call 10 minutes before After Hours. The app reads every
+ * time it shows from here; change a night by changing these numbers.
+ */
+export const NIGHT_HOURS = { opens: 21, afterHours: 24, closes: 27 };
+export const LAST_CALL_MINUTES = 10;
+
+export function buildNightSchedule(nightOf: Date, hours = NIGHT_HOURS): NightSchedule {
   const at = (hour: number) =>
     new Date(nightOf.getFullYear(), nightOf.getMonth(), nightOf.getDate(), hour).getTime();
-  return { opensAt: at(21), afterHoursAt: at(24), closesAt: at(27) };
+  const afterHoursAt = at(hours.afterHours);
+  return { opensAt: at(hours.opens), lastCallAt: afterHoursAt - LAST_CALL_MINUTES * 60_000, afterHoursAt, closesAt: at(hours.closes) };
 }
 
-/** Tonight's schedule; before 3 AM, "tonight" is the night that started yesterday. */
+/** Tonight's schedule; before closing, "tonight" is the night that started yesterday. */
 export function tonight(now: number): NightSchedule {
   const d = new Date(now);
-  if (d.getHours() < 3) d.setDate(d.getDate() - 1);
+  if (d.getHours() < NIGHT_HOURS.closes - 24) d.setDate(d.getDate() - 1);
   return buildNightSchedule(d);
 }
 
@@ -161,3 +169,45 @@ export const MOCK_MENUS: Partial<Record<RoomId, readonly MenuItem[]>> = {
     { id: 's4', name: 'French 75', detail: 'Gin, lemon, sparkling wine', alcohol: true },
   ],
 };
+
+/** The next night's programming, for the end-of-night screen. Doors come from the same schedule. */
+export function nextNightAfter(schedule: NightSchedule): NextNight {
+  const day = new Date(schedule.opensAt);
+  day.setDate(day.getDate() + 1);
+  return { opensAt: buildNightSchedule(day).opensAt, dj: { name: 'DJ Nova', genres: ['House', 'R&B', 'Afro house'] } };
+}
+
+/**
+ * Where the mock crowd is in each part of the night. At After Hours everyone
+ * in a room that closes moves downstairs (rooms that stay open keep their
+ * people); after closing, everyone has gone home. Used by MockNight only.
+ */
+export function mockCrowd(phase: 'closed' | 'live' | 'afterHours', nightIsOver: boolean): {
+  presence: Record<string, RoomId | null>;
+  occupancy: Partial<Record<RoomId, number>>;
+} {
+  if (nightIsOver) {
+    return {
+      presence: Object.fromEntries(Object.keys(MOCK_PRESENCE).map((id) => [id, null])),
+      occupancy: Object.fromEntries(ROOMS.map((r) => [r.id, 0])),
+    };
+  }
+  if (phase !== 'afterHours') return { presence: { ...MOCK_PRESENCE }, occupancy: { ...MOCK_OCCUPANCY } };
+
+  const closes = (id: RoomId) => !getRoom(id).openDuring.includes('afterHours');
+  const downstairs = ROOMS.find((r) => r.lobby && r.openDuring.includes('afterHours'))!.id;
+  const presence = Object.fromEntries(
+    Object.entries(MOCK_PRESENCE).map(([id, room]) => [id, room && closes(room) ? downstairs : room]),
+  );
+  const occupancy: Partial<Record<RoomId, number>> = { ...MOCK_OCCUPANCY };
+  let moved = 0;
+  for (const r of ROOMS) {
+    if (closes(r.id)) {
+      moved += occupancy[r.id] ?? 0;
+      occupancy[r.id] = 0;
+    }
+  }
+  // Most of the floor heads down; some call it a night.
+  occupancy[downstairs] = Math.round(moved * 0.6);
+  return { presence, occupancy };
+}

@@ -50,6 +50,13 @@ export interface RoomRecord {
   /** How the headcount reads: "1,240 on the floor". */
   crowd: string;
   scene?: SceneLayout;
+  /**
+   * A lobby is the scene Home shows when you're in no room: the first lobby
+   * open right now (Main Floor, then After Hours). Its join button reads `lobby`.
+   */
+  lobby?: string;
+  /** Colour treatment beyond the default purple. Gold is The Suite's alone (see inSuite). */
+  palette?: 'midnight';
 }
 
 const RECORDS = [
@@ -63,6 +70,7 @@ const RECORDS = [
     openDuring: ['live'],
     art: 'main-floor',
     crowd: 'on the floor',
+    lobby: 'Join the floor',
     scene: {
       halo: true,
       hotspots: [
@@ -136,6 +144,8 @@ const RECORDS = [
     openDuring: ['afterHours'],
     art: 'after-hours',
     crowd: 'still up',
+    lobby: 'Head downstairs',
+    palette: 'midnight',
   },
 ] as const satisfies readonly RoomRecord[];
 
@@ -149,8 +159,8 @@ export interface Room extends RoomRecord {
 
 export const ROOMS: readonly Room[] = RECORDS;
 
-/** Home shows this room's scene when you're in no room and it's open. */
-export const LOBBY_ID = 'main-floor' satisfies RoomId;
+/** Rooms Home can show when you're in no room, in order of preference. */
+export const LOBBIES: readonly Room[] = ROOMS.filter((r) => r.lobby);
 
 /** The Suite is strictly 21+ (invariant 1). Checked below, not trusted. */
 export const SUITE_ID = 'suite' satisfies RoomId;
@@ -163,6 +173,9 @@ export function validateRooms(rooms: readonly RoomRecord[]): string[] {
   for (const room of rooms) {
     if (byId.has(room.id)) errors.push(`duplicate room id "${room.id}"`);
     byId.set(room.id, room);
+    if (room.lobby && (room.parent !== null || room.access.minAge !== 18 || room.access.entry !== 'open')) {
+      errors.push(`room "${room.id}" is a lobby but isn't a top-level 18+ open room`);
+    }
     if (room.access.reachedFrom === 'parent' && room.parent === null) {
       errors.push(`room "${room.id}" is reached from its parent but has none`);
     }
@@ -181,6 +194,8 @@ export function validateRooms(rooms: readonly RoomRecord[]): string[] {
       }
     }
   }
+
+  if (!rooms.some((r) => r.lobby)) errors.push('no lobby: Home would have nothing to show');
 
   // Parent chain: every parent exists, no cycles. A bad chain would
   // otherwise surface as an infinite loop in the access check.

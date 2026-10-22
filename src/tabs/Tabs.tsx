@@ -10,8 +10,8 @@ import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
 import { visibleMembers, visibleMessages, visibleThreads } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
-import { homeRoom, opensAt, presenceOf } from '../venue/machine.ts';
-import { getRoom, LOBBY_ID } from '../venue/rooms.ts';
+import { canRemind, homeRoom, nightOver, opensAt, presenceOf } from '../venue/machine.ts';
+import { getRoom, LOBBIES } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 
 const PHASE_LABEL = { closed: 'Doors closed', live: 'Live now', afterHours: 'After Hours' } as const;
@@ -22,21 +22,28 @@ export function HomeTab({ chat, onChat }: { chat: DrawerSize; onChat: (size: Dra
   const room = homeRoom(state);
   if (room !== null && inSuite(room)) return <SuiteScreen key={room} roomId={room} chat={chat} onChat={onChat} />;
   if (room !== null) return <RoomScreen key={room} roomId={room} chat={chat} onChat={onChat} />;
-  return <DoorsScreen />;
+  return nightOver(state) ? <ClosingScreen /> : <DoorsScreen />;
 }
 
 function DoorsScreen() {
   const { state, dispatch } = useVenue();
   const [exploring, setExploring] = useState(false);
   const closeExplore = useCallback(() => setExploring(false), []);
-  // Before doors, say when they open; after closing, just "Doors closed".
-  const doorsAt = state.phase === 'closed' ? opensAt(state, LOBBY_ID) : null;
+  // Before doors: when the first lobby opens, from the schedule, with Remind me.
+  const next = LOBBIES.find((r) => opensAt(state, r.id) !== null);
+  const doorsAt = next ? opensAt(state, next.id) : null;
+  const reminded = next ? state.reminders.includes(next.id) : false;
 
   return (
     <section className="shell" aria-label="Home">
       <img className="logo" src={logo} alt="The Dorm" />
       <p className="tagline">Every campus. One night.</p>
       <p className="phase">{doorsAt !== null ? `Doors open ${formatTime(doorsAt)}` : PHASE_LABEL[state.phase]}</p>
+      {next && (reminded || canRemind(state, next.id)) && (
+        <button className="btn upcoming-remind" aria-pressed={reminded} onClick={() => dispatch({ type: 'remind', roomId: next.id })}>
+          {reminded ? 'Reminder set' : 'Remind me'}
+        </button>
+      )}
 
       {state.location ? (
         <p className="where">
@@ -54,6 +61,33 @@ function DoorsScreen() {
       </button>
 
       {exploring && <ExploreOverlay onClose={closeExplore} />}
+    </section>
+  );
+}
+
+/** The night is over (schedule.closesAt). Everything here comes from the next night's programming. */
+function ClosingScreen() {
+  const { state } = useVenue();
+  const next = state.nextNight;
+  return (
+    <section className="shell closing" aria-label="Home">
+      <img className="logo" src={logo} alt="The Dorm" />
+      <h1 className="closing-title">That's the night.</h1>
+      <p className="tagline">Every campus. One night.</p>
+      {next && (
+        <div className="next-night">
+          <span className="np-label">Next night</span>
+          <span className="next-when">
+            {new Date(next.opensAt).toLocaleDateString([], { weekday: 'long' })} · doors {formatTime(next.opensAt)}
+          </span>
+          {next.dj && (
+            <>
+              <span className="np-dj">{next.dj.name}</span>
+              <span className="np-genres">{next.dj.genres.join(' · ')}</span>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }

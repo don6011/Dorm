@@ -1,14 +1,17 @@
 // Where screens send you. Access itself is always canEnter's call; this only
 // decides which screen or sheet answers a tap.
 
-import { canEnter, isOpen, type VenueState } from '../venue/machine.ts';
-import { getRoom, LOBBY_ID, type Room, type RoomId } from '../venue/rooms.ts';
+import { canEnter, openLobby, type VenueState } from '../venue/machine.ts';
+import { getRoom, type Room, type RoomId } from '../venue/rooms.ts';
 
-/** Back goes to the parent room (The Bar → Main Floor, Booth → The Suite), else the lobby if open. */
+/**
+ * Back goes to the parent room (The Bar → Main Floor, Booth → The Suite), else
+ * the open lobby (Main Floor, or After Hours once it's open), else nowhere.
+ */
 export function backTarget(state: VenueState, room: Room): RoomId | null {
   if (room.parent) return room.parent;
-  if (room.id !== LOBBY_ID && isOpen(state, LOBBY_ID)) return LOBBY_ID;
-  return null;
+  const lobby = openLobby(state);
+  return lobby !== null && lobby !== room.id ? lobby : null;
 }
 
 /**

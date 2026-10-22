@@ -7,12 +7,12 @@ import { useEffect, useState } from 'react';
 import logo from '../../design/logo-white.webp';
 import { ChatDrawer, ChatPeek, type DrawerSize } from '../chat/ChatDrawer.tsx';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
-import { lockedReason } from '../explore/labels.ts';
+import { formatTime, lockedReason } from '../explore/labels.ts';
 import { PersonTap } from '../people/PersonTap.tsx';
 import { campusCount, roomRoster } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
-import { canEnter, showsHeadcount } from '../venue/machine.ts';
-import { getRoom, LOBBY_ID, type Hotspot, type RoomId } from '../venue/rooms.ts';
+import { canEnter, canRemind, isOpen, lastCall, openLobby, opensAt, showsHeadcount } from '../venue/machine.ts';
+import { getRoom, LOBBIES, type Hotspot, type RoomId } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 import { artUrl, inSuite } from './art.ts';
 import { DoorSheet } from './DoorSheet.tsx';
@@ -31,13 +31,20 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
   const hasMenu = (state.menus[roomId] ?? []).length > 0;
   const room = getRoom(roomId);
   const inside = state.location === roomId;
+  const open = isOpen(state, roomId);
+  // You were in here when it closed for the night: Home keeps it on screen, read-only.
+  const closedHere = !open && state.closedOn === roomId;
+  const moveOn = closedHere ? openLobby(state) : null;
+  const call = inside ? lastCall(state) : null;
   const art = artUrl(room);
 
   const roster = roomRoster(state, social.state, social.members, roomId);
   const count = showsHeadcount(state, roomId) ? (state.occupancy[roomId] ?? 0) : null;
   const fromCampus = campusCount(state, social.state, social.members, roomId);
   const back = backTarget(state, room);
-  const dj = state.dj && state.dj.roomId === roomId ? state.dj : null;
+  const dj = open && state.dj && state.dj.roomId === roomId ? state.dj : null;
+  // A lobby shows the next lobby that opens later tonight (After Hours), with Remind me.
+  const upcoming = room.lobby && open ? LOBBIES.find((r) => r.id !== roomId && opensAt(state, r.id) !== null) : undefined;
 
   const [joinReason, setJoinReason] = useState<string | null>(null);
   const join = () => {
@@ -51,7 +58,11 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
   };
 
   return (
-    <section className={`room-screen${inSuite(roomId) ? ' room-screen--suite' : ''}`} aria-labelledby="room-title">
+    <section
+      className={`room-screen${inSuite(roomId) ? ' room-screen--suite' : ''}${open ? '' : ' room-screen--closed'}`}
+      data-palette={room.palette}
+      aria-labelledby="room-title"
+    >
       <div className="scene" data-art={room.art} aria-hidden="true">
         {art && <img src={art} alt="" decoding="async" />}
       </div>
@@ -63,7 +74,7 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
           <button className="back-button" onClick={() => dispatch({ type: 'enter', roomId: back })}>
             ‹ {getRoom(back).label}
           </button>
-        ) : inside && room.id !== LOBBY_ID ? (
+        ) : inside && !room.lobby ? (
           <button className="back-button" onClick={() => dispatch({ type: 'leave' })}>
             ‹ Leave
           </button>
@@ -75,12 +86,18 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
       {room.scene?.halo && <Halo items={lineup(state)} />}
 
       {chat === 'peek' &&
+        open &&
         room.scene?.hotspots?.map((h) => (
           <HotspotDoor key={h.roomId} hotspot={h} onEnter={() => dispatch({ type: 'enter', roomId: h.roomId })} />
         ))}
 
       {chat === 'peek' && (
-        <div className={`room-content${inside ? ' room-content--inside' : ''}`}>
+        <div className={`room-content${inside || closedHere ? ' room-content--inside' : ''}`}>
+          {call && (
+            <p className="last-call" role="status">
+              Last call · the night moves downstairs at {formatTime(call.at)}
+            </p>
+          )}
           <h1 id="room-title" className="room-title">
             {room.label}
           </h1>
@@ -113,9 +130,22 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
             </div>
           )}
 
-          {!inside && (
+          {upcoming && <UpcomingCard roomId={upcoming.id} />}
+
+          {closedHere && (
+            <div className="closed-panel">
+              <p>{room.label} has closed for the night.</p>
+              {moveOn && (
+                <button className="cta room-cta" onClick={() => dispatch({ type: 'enter', roomId: moveOn })}>
+                  {getRoom(moveOn).lobby}
+                </button>
+              )}
+            </div>
+          )}
+
+          {!inside && open && room.lobby && (
             <button className="cta room-cta" onClick={join}>
-              Join the floor
+              {room.lobby}
             </button>
           )}
           {joinReason && (
@@ -134,7 +164,7 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
         </div>
       )}
 
-      {inside &&
+      {(inside || closedHere) &&
         (chat === 'peek' ? (
           <ChatPeek room={room} onOpen={() => onChat('half')} />
         ) : (
@@ -144,6 +174,26 @@ export function RoomScreen({ roomId, chat, onChat }: { roomId: RoomId; chat: Dra
       {exploring && <ExploreOverlay onClose={() => setExploring(false)} />}
       {menuOpen && <MenuSheet roomId={roomId} onClose={() => setMenuOpen(false)} />}
     </section>
+  );
+}
+
+/** "After Hours · opens <time>" with Remind me. The time is the schedule's, never written here. */
+function UpcomingCard({ roomId }: { roomId: RoomId }) {
+  const { state, dispatch } = useVenue();
+  const at = opensAt(state, roomId);
+  const reminded = state.reminders.includes(roomId);
+  if (at === null) return null;
+  return (
+    <div className="upcoming">
+      <span className="upcoming-text">
+        {getRoom(roomId).label} · opens {formatTime(at)}
+      </span>
+      {(reminded || canRemind(state, roomId)) && (
+        <button className="btn upcoming-remind" aria-pressed={reminded} onClick={() => dispatch({ type: 'remind', roomId })}>
+          {reminded ? 'Reminder set' : 'Remind me'}
+        </button>
+      )}
+    </div>
   );
 }
 

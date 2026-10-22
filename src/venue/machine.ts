@@ -2,7 +2,7 @@
 // access check. Screens read this; they never re-derive phase, location or
 // access themselves.
 
-import { getRoom, LOBBY_ID, roomChain, type NightPhase, type RoomId } from './rooms.ts';
+import { getRoom, LOBBIES, roomChain, type NightPhase, type RoomId } from './rooms.ts';
 
 /** What any member may see about another member. No DOB, ever (invariant 4). */
 export interface PublicMember {
@@ -43,10 +43,25 @@ export interface DjSet {
   roomId: RoomId;
 }
 
+/** Every time the app shows comes from here: nothing is written into copy or code. */
 export interface NightSchedule {
   opensAt: number;
+  /** When last call starts in the rooms that close as After Hours opens. */
+  lastCallAt: number;
   afterHoursAt: number;
   closesAt: number;
+}
+
+/** The next night, for the end-of-night screen. */
+export interface NextNight {
+  opensAt: number;
+  dj: { name: string; genres: readonly string[] } | null;
+}
+
+export interface Notice {
+  id: string;
+  /** A room you asked to be reminded about has opened. */
+  roomId: RoomId;
 }
 
 /** 'throughParent': the room is reached only from inside its parent (the Suite Booth). */
@@ -73,6 +88,17 @@ export interface VenueState {
   requests: { passRequested: readonly RoomId[]; waitlisted: readonly RoomId[] };
   /** Food and drink lists per room. Alcohol items render only through canSeeAlcohol. */
   menus: Partial<Record<RoomId, readonly MenuItem[]>>;
+  /**
+   * The room you were in when it closed for the night, while another room is
+   * open to move on to. Home keeps it on screen, read-only, with the prompt to
+   * head on. Only ever set by being moved out of a closing room.
+   */
+  closedOn: RoomId | null;
+  /** Rooms you asked to be told about when they open. */
+  reminders: readonly RoomId[];
+  /** In-app notices waiting to be seen (mock for push). */
+  notices: readonly Notice[];
+  nextNight: NextNight | null;
   /** Why the last enter failed, or why the viewer was moved out. */
   lastDenial: Extract<Access, { ok: false }> | null;
 }
@@ -86,7 +112,10 @@ export type VenueAction =
   | { type: 'requestPass'; roomId: RoomId }
   | { type: 'joinWaitlist'; roomId: RoomId }
   /** The server granted a pass. Stands in for a backend push; only the dev panel sends it today. */
-  | { type: 'passGranted'; pass: GuestPass };
+  | { type: 'passGranted'; pass: GuestPass }
+  /** Toggle a reminder for a room that opens later tonight. */
+  | { type: 'remind'; roomId: RoomId }
+  | { type: 'dismissNotice'; id: string };
 
 export interface MenuItem {
   id: string;
@@ -141,14 +170,40 @@ function hasValidPass(viewer: Viewer, roomId: RoomId, now: number): boolean {
   return viewer.guestPasses.some((p) => p.roomId === roomId && p.expiresAt > now);
 }
 
+/** The first lobby open right now: Main Floor, then After Hours. */
+export function openLobby(state: VenueState): RoomId | null {
+  return LOBBIES.find((room) => isOpen(state, room.id))?.id ?? null;
+}
+
 /**
- * The room whose scene Home shows: where you are, or the lobby (Main Floor)
- * when you're in no room and it's open. null = no room scene (before doors,
- * or the lobby is closed and you haven't moved on).
+ * The room whose scene Home shows: where you are; else the room you were in
+ * when it closed (with the prompt to move on); else the open lobby. null =
+ * before doors or after the night ends.
  */
 export function homeRoom(state: VenueState): RoomId | null {
-  if (state.location !== null) return state.location;
-  return isOpen(state, LOBBY_ID) ? LOBBY_ID : null;
+  return state.location ?? state.closedOn ?? openLobby(state);
+}
+
+export function nightOver(state: VenueState): boolean {
+  return state.now >= state.schedule.closesAt;
+}
+
+/**
+ * Last call: you're in a room that closes when After Hours opens, and it's
+ * past lastCallAt. Says when, and where the night moves to. People in rooms
+ * that stay open (The Suite) or in no room get nothing.
+ */
+export function lastCall(state: VenueState): { at: number; to: RoomId } | null {
+  if (state.location === null || state.phase !== 'live' || state.now < state.schedule.lastCallAt) return null;
+  if (roomChain(state.location).every((room) => room.openDuring.includes('afterHours'))) return null;
+  const to = LOBBIES.find((room) => room.openDuring.includes('afterHours'));
+  return to ? { at: state.schedule.afterHoursAt, to: to.id } : null;
+}
+
+/** A reminder makes sense for a room that's closed now and opens later tonight, and that you could enter. */
+export function canRemind(state: VenueState, roomId: RoomId): boolean {
+  const access = canEnter(state, roomId);
+  return !access.ok && access.reason === 'closed' && opensAt(state, roomId) !== null;
 }
 
 /** Open in the current phase — the room and every ancestor. */
@@ -269,6 +324,7 @@ export function createVenueState(init: {
   occupancy?: Partial<Record<RoomId, number>>;
   presence?: Readonly<Record<string, RoomId | null>>;
   menus?: Partial<Record<RoomId, readonly MenuItem[]>>;
+  nextNight?: NextNight | null;
 }): VenueState {
   return {
     now: init.now,
@@ -281,6 +337,10 @@ export function createVenueState(init: {
     presence: { ...init.presence },
     requests: { passRequested: [], waitlisted: [] },
     menus: { ...init.menus },
+    closedOn: null,
+    reminders: [],
+    notices: [],
+    nextNight: init.nextNight ?? null,
     lastDenial: null,
   };
 }
@@ -299,15 +359,30 @@ function move(
 export function venueReducer(state: VenueState, action: VenueAction): VenueState {
   switch (action.type) {
     case 'tick': {
-      const next = { ...state, now: action.now, phase: phaseAt(state.schedule, action.now) };
+      let next: VenueState = { ...state, now: action.now, phase: phaseAt(state.schedule, action.now) };
+
+      // Reminders for rooms that just opened become notices.
+      const opened = next.reminders.filter((roomId) => isOpen(next, roomId));
+      if (opened.length > 0) {
+        next = {
+          ...next,
+          reminders: next.reminders.filter((roomId) => !opened.includes(roomId)),
+          notices: [...next.notices, ...opened.map((roomId) => ({ id: `${roomId}@${action.now}`, roomId }))],
+        };
+      }
+      // Nowhere left to move on to (end of night): nothing to look back at.
+      if (openLobby(next) === null) next = { ...next, closedOn: null };
+
       if (next.location === null) return next;
       // Phase changes and pass expiry can end the viewer's right to be here.
       const access = checkAccess(next, next.location, true);
       if (access.ok) return next;
+      const closedOn = access.reason === 'closed' && openLobby(next) !== null ? next.location : null;
       return {
         ...next,
         occupancy: move(next.occupancy, next.location, null),
         location: null,
+        closedOn,
         lastDenial: access,
       };
     }
@@ -319,12 +394,15 @@ export function venueReducer(state: VenueState, action: VenueAction): VenueState
         ...state,
         occupancy: move(state.occupancy, state.location, action.roomId),
         location: action.roomId,
+        closedOn: null,
+        // Being there answers any "it's open" notice about this room.
+        notices: state.notices.filter((n) => n.roomId !== action.roomId),
         lastDenial: null,
       };
     }
     case 'leave': {
-      if (state.location === null) return state;
-      return { ...state, occupancy: move(state.occupancy, state.location, null), location: null };
+      if (state.location === null) return { ...state, closedOn: null };
+      return { ...state, occupancy: move(state.occupancy, state.location, null), location: null, closedOn: null };
     }
     case 'occupancy':
       return { ...state, occupancy: { ...state.occupancy, ...action.counts } };
@@ -338,6 +416,15 @@ export function venueReducer(state: VenueState, action: VenueAction): VenueState
       if (!canJoinWaitlist(state, action.roomId) || state.requests.waitlisted.includes(action.roomId)) return state;
       return { ...state, requests: { ...state.requests, waitlisted: [...state.requests.waitlisted, action.roomId] } };
     }
+    case 'remind': {
+      if (state.reminders.includes(action.roomId)) {
+        return { ...state, reminders: state.reminders.filter((r) => r !== action.roomId) };
+      }
+      if (!canRemind(state, action.roomId)) return state;
+      return { ...state, reminders: [...state.reminders, action.roomId] };
+    }
+    case 'dismissNotice':
+      return { ...state, notices: state.notices.filter((n) => n.id !== action.id) };
     case 'passGranted': {
       // Re-checks age itself: even a granted pass never reaches someone the
       // room's age gate excludes, so no grant path can stand in for 21+.

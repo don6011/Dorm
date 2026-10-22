@@ -8,22 +8,28 @@
 
 import { useMemo, useState } from 'react';
 
+import { formatTime } from '../explore/labels.ts';
+
 import App from '../App.tsx';
-import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, tonight } from '../data/mock.ts';
+import { MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS, MOCK_VIEWERS, nextNightAfter, tonight } from '../data/mock.ts';
 import { SocialProvider } from '../social/SocialProvider.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import type { NightSchedule } from '../venue/machine.ts';
 import { getRoom } from '../venue/rooms.ts';
+import { MockNight } from '../data/MockNight.tsx';
 import { useVenue, VenueProvider } from '../venue/VenueProvider.tsx';
 
 type ViewerKey = keyof typeof MOCK_VIEWERS;
 
 const HOUR = 3_600_000;
+// Every preset is an offset from the schedule, and its label shows the time it
+// lands on, so changing the night's hours never leaves a stale label here.
 const TIMES = {
   real: { label: 'Real clock', at: null },
   beforeDoors: { label: 'Before doors', at: (s: NightSchedule) => s.opensAt - HOUR },
-  live: { label: 'Live (10 PM)', at: (s: NightSchedule) => s.opensAt + HOUR },
-  afterHours: { label: 'After Hours (1 AM)', at: (s: NightSchedule) => s.afterHoursAt + HOUR },
+  live: { label: 'Live', at: (s: NightSchedule) => s.opensAt + HOUR },
+  lastCall: { label: 'Last call', at: (s: NightSchedule) => s.lastCallAt + 2 * 60_000 },
+  afterHours: { label: 'After Hours', at: (s: NightSchedule) => s.afterHoursAt + HOUR },
   afterClose: { label: 'After close', at: (s: NightSchedule) => s.closesAt + HOUR },
 } as const;
 type TimeKey = keyof typeof TIMES;
@@ -71,8 +77,10 @@ export function DevRoot() {
       dj={MOCK_DJ}
       presence={MOCK_PRESENCE}
       menus={MOCK_MENUS}
+      nextNight={nextNightAfter(schedule)}
       clock={clock}
     >
+      <MockNight />
       <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
         <ChatProvider initial={MOCK_CHAT}>
           <App />
@@ -83,6 +91,7 @@ export function DevRoot() {
         onViewer={setViewerKey}
         timeKey={timeKey}
         onTime={onTime}
+        schedule={schedule}
         open={panelOpen}
         onToggle={() => setPanelOpen(!panelOpen)}
       />
@@ -95,6 +104,7 @@ function DevPanel(props: {
   onViewer: (k: ViewerKey) => void;
   timeKey: TimeKey;
   onTime: (k: TimeKey) => void;
+  schedule: NightSchedule;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -122,7 +132,7 @@ function DevPanel(props: {
             <select value={props.timeKey} onChange={(e) => props.onTime(e.target.value as TimeKey)}>
               {Object.entries(TIMES).map(([k, t]) => (
                 <option key={k} value={k}>
-                  {t.label}
+                  {t.at ? `${t.label} (${formatTime(t.at(props.schedule))})` : t.label}
                 </option>
               ))}
             </select>

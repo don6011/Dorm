@@ -2,8 +2,9 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
-import { canEnter, canSeeAlcohol, createVenueState, homeRoom, opensAt, presenceOf, visibleMenu, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
+import { canEnter, canSeeAlcohol, createVenueState, homeRoom, isOpen, lastCall, nightOver, openLobby, opensAt, presenceOf, visibleMenu, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
 import { ROOMS, validateRooms, type RoomId, type RoomRecord } from './rooms.ts';
+import { canPost } from '../chat/chat.ts';
 
 const ALL_ROOMS = ROOMS.map((r) => r.id);
 
@@ -263,12 +264,13 @@ test('presence in open rooms is shown to everyone; absent members are away', () 
 // --- Home scene + hotspots ------------------------------------------------
 
 
-test('homeRoom: where you are, else Main Floor when open, else none', () => {
+test('homeRoom: where you are, else the open lobby (Main Floor, then After Hours), else none', () => {
   const v = MOCK_VIEWERS.over21WithSuitePass;
   assert.equal(homeRoom(stateFor(v)), 'main-floor');
   assert.equal(homeRoom(venueReducer(stateFor(v), { type: 'enter', roomId: 'bar' })), 'bar');
   assert.equal(homeRoom(stateFor(v, TEST_TIMES.beforeDoors)), null);
-  assert.equal(homeRoom(stateFor(v, TEST_TIMES.afterHours)), null, 'Main Floor closes at After Hours');
+  assert.equal(homeRoom(stateFor(v, TEST_TIMES.afterHours)), 'after-hours', 'the lobby moves downstairs');
+  assert.equal(homeRoom(stateFor(v, TEST_TIMES.afterClose)), null, 'the night is over');
 });
 
 test('self-check rejects a hotspot to an unknown room, to itself, or off the scene', () => {
@@ -350,4 +352,100 @@ test('canSeeAlcohol: menus show alcohol items only to 21+; zero-proof to everyon
 test('self-check rejects "reached from parent" on a room without one', () => {
   const errors = validateRooms(edit('rooftop', { access: { minAge: 18, entry: 'open', reachedFrom: 'parent' } }));
   assert.ok(errors.some((e) => e.includes('"rooftop" is reached from its parent but has none')));
+});
+
+// --- After Hours: closing, the move downstairs, last call, reminders, end --
+
+const viewerIn = (v: Viewer, roomId: RoomId | null) => {
+  let s = stateFor(v);
+  if (roomId === 'suite-booth') s = enter(s, 'suite');
+  if (roomId) s = enter(s, roomId);
+  assert.equal(s.location, roomId);
+  return s;
+};
+const at = (s: ReturnType<typeof stateFor>, now: number) => venueReducer(s, { type: 'tick', now });
+
+test('at After Hours the main rooms close; The Suite and its booth stay open', () => {
+  const s = at(stateFor(MOCK_VIEWERS.over21WithSuitePass), TEST_TIMES.afterHours);
+  for (const id of ['main-floor', 'bar', 'rooftop', 'spot'] as const) assert.equal(isOpen(s, id), false, id);
+  for (const id of ['after-hours', 'suite', 'suite-booth'] as const) assert.equal(isOpen(s, id), true, id);
+});
+
+test('the Head downstairs prompt goes only to people moved out of a closing room', () => {
+  const v = MOCK_VIEWERS.over21WithSuitePass;
+  for (const id of ['main-floor', 'bar', 'rooftop', 'spot'] as const) {
+    const s = at(viewerIn(v, id), TEST_TIMES.afterHours);
+    assert.equal(s.location, null, id);
+    assert.equal(s.closedOn, id, id);
+    assert.equal(homeRoom(s), id, 'Home keeps your room on screen, closed');
+  }
+  for (const id of ['suite', 'suite-booth'] as const) {
+    const s = at(viewerIn(v, id), TEST_TIMES.afterHours);
+    assert.equal(s.location, id);
+    assert.equal(s.closedOn, null, `${id}: no prompt`);
+  }
+  const nowhere = at(viewerIn(v, null), TEST_TIMES.afterHours);
+  assert.equal(nowhere.closedOn, null, 'no room: no prompt');
+  assert.equal(homeRoom(nowhere), 'after-hours', 'Home shows After Hours');
+});
+
+test('Head downstairs walks you into After Hours and clears the prompt', () => {
+  const closed = at(viewerIn(MOCK_VIEWERS.under21WithSuitePass, 'bar'), TEST_TIMES.afterHours);
+  assert.equal(openLobby(closed), 'after-hours');
+  const down = enter(closed, 'after-hours');
+  assert.equal(down.location, 'after-hours');
+  assert.equal(down.closedOn, null);
+});
+
+test('posting is refused in a closed room, even for someone still marked inside', () => {
+  const inside = viewerIn(MOCK_VIEWERS.over21NoPass, 'main-floor');
+  assert.equal(canPost(inside, 'main-floor'), true);
+  assert.equal(canPost(at(inside, TEST_TIMES.afterHours), 'main-floor'), false);
+  const stale = { ...inside, now: TEST_TIMES.afterHours, phase: 'afterHours' as const };
+  assert.equal(canPost(stale, 'main-floor'), false, 'the room being closed is enough');
+});
+
+test('last call: in a closing room from lastCallAt, never in The Suite or in no room', () => {
+  const v = MOCK_VIEWERS.over21WithSuitePass;
+  const during = TEST_NIGHT.lastCallAt + 60_000;
+  assert.deepEqual(lastCall(at(viewerIn(v, 'main-floor'), during)), { at: TEST_NIGHT.afterHoursAt, to: 'after-hours' });
+  assert.deepEqual(lastCall(at(viewerIn(v, 'bar'), during))?.to, 'after-hours');
+  assert.equal(lastCall(at(viewerIn(v, 'main-floor'), TEST_NIGHT.lastCallAt - 60_000)), null, 'too early');
+  assert.equal(lastCall(at(viewerIn(v, 'suite'), during)), null, 'The Suite stays open');
+  assert.equal(lastCall(at(viewerIn(v, 'suite-booth'), during)), null);
+  assert.equal(lastCall(at(viewerIn(v, null), during)), null);
+});
+
+test('reminders: set for a room that opens later, fired as a notice when it opens, cleared by going in', () => {
+  let s = venueReducer(stateFor(MOCK_VIEWERS.over21NoPass), { type: 'remind', roomId: 'after-hours' });
+  assert.deepEqual(s.reminders, ['after-hours']);
+  s = at(s, TEST_TIMES.afterHours);
+  assert.deepEqual(s.reminders, []);
+  assert.deepEqual(s.notices.map((n) => n.roomId), ['after-hours']);
+  assert.deepEqual(enter(s, 'after-hours').notices, []);
+  const off = venueReducer(venueReducer(stateFor(MOCK_VIEWERS.over21NoPass), { type: 'remind', roomId: 'after-hours' }), { type: 'remind', roomId: 'after-hours' });
+  assert.deepEqual(off.reminders, [], 'toggles off');
+});
+
+test('reminders are refused for open rooms and for rooms your age keeps you out of', () => {
+  const remind = (v: Viewer, roomId: RoomId, now?: number) => venueReducer(stateFor(v, now), { type: 'remind', roomId }).reminders;
+  assert.deepEqual(remind(MOCK_VIEWERS.over21NoPass, 'main-floor'), [], 'already open');
+  assert.deepEqual(remind(MOCK_VIEWERS.over21NoPass, 'main-floor', TEST_TIMES.beforeDoors), ['main-floor'], 'before doors');
+  assert.deepEqual(remind(MOCK_VIEWERS.under21WithSuitePass, 'suite', TEST_TIMES.beforeDoors), [], 'under 21');
+  assert.deepEqual(remind(MOCK_VIEWERS.under21WithSuitePass, 'after-hours'), ['after-hours'], 'After Hours is 18+');
+});
+
+test('end of night: everything closes, nothing to look back at, Home has no room', () => {
+  const s = at(at(viewerIn(MOCK_VIEWERS.over21WithSuitePass, 'main-floor'), TEST_TIMES.afterHours), TEST_TIMES.afterClose);
+  assert.equal(nightOver(s), true);
+  assert.equal(s.closedOn, null);
+  assert.equal(homeRoom(s), null);
+  const suite = at(viewerIn(MOCK_VIEWERS.over21WithSuitePass, 'suite'), TEST_TIMES.afterClose);
+  assert.equal(suite.location, null, 'The Suite closes too');
+  assert.equal(suite.closedOn, null);
+});
+
+test('self-check: lobbies are top-level 18+ open rooms, and there is at least one', () => {
+  assert.ok(validateRooms(edit('suite', { lobby: 'Walk in' })).some((e) => e.includes('"suite" is a lobby')));
+  assert.ok(validateRooms(base.map((r) => ({ ...r, lobby: undefined }))).some((e) => e.includes('no lobby')));
 });
