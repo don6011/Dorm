@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_VIEWERS, TEST_NIGHT, TEST_TIMES } from '../data/mock.ts';
-import { canEnter, createVenueState, homeRoom, opensAt, presenceOf, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
+import { canEnter, canSeeAlcohol, createVenueState, homeRoom, opensAt, presenceOf, visibleMenu, showsHeadcount, venueReducer, type Viewer } from './machine.ts';
 import { ROOMS, validateRooms, type RoomId, type RoomRecord } from './rooms.ts';
 
 const ALL_ROOMS = ROOMS.map((r) => r.id);
@@ -43,11 +43,12 @@ test('the enter action refuses too, and the viewer does not move', () => {
   assert.equal(s.lastDenial?.reason, 'underage');
 });
 
-test('21+ needs a pass for The Suite; with one, Suite and booth open', () => {
+test('21+ needs a pass for The Suite; with one, Suite opens and the booth opens from inside it', () => {
   assert.deepEqual(denial(MOCK_VIEWERS.over21NoPass, 'suite'), { reason: 'needsPass', roomId: 'suite' });
   assert.deepEqual(denial(MOCK_VIEWERS.over21NoPass, 'suite-booth'), { reason: 'needsPass', roomId: 'suite' });
   assert.equal(denial(MOCK_VIEWERS.over21WithSuitePass, 'suite'), null);
-  assert.equal(denial(MOCK_VIEWERS.over21WithSuitePass, 'suite-booth'), null);
+  const inSuite = venueReducer(stateFor(MOCK_VIEWERS.over21WithSuitePass), { type: 'enter', roomId: 'suite' });
+  assert.equal(canEnter(inSuite, 'suite-booth').ok, true);
 });
 
 test('an expired pass does not open The Suite', () => {
@@ -94,7 +95,7 @@ test('After Hours is closed before midnight', () => {
 test('at After Hours, only After Hours and The Suite are open', () => {
   const v = MOCK_VIEWERS.over21WithSuitePass;
   const now = TEST_TIMES.afterHours;
-  const open = ALL_ROOMS.filter((id) => denial(v, id, now) === null);
+  const open = ALL_ROOMS.filter((id) => denial(v, id, now)?.reason !== 'closed');
   assert.deepEqual(open.sort(), ['after-hours', 'suite', 'suite-booth']);
   assert.deepEqual(denial(v, 'bar', now), { reason: 'closed', roomId: 'bar' });
 });
@@ -159,7 +160,7 @@ test('headcount: shown past a pass barrier, hidden past an age barrier', () => {
 // --- Capacity & movement -----------------------------------------------
 
 test('a full room refuses entry; the viewer counts once they are in', () => {
-  let s = stateFor(MOCK_VIEWERS.over21WithSuitePass);
+  let s = venueReducer(stateFor(MOCK_VIEWERS.over21WithSuitePass), { type: 'enter', roomId: 'suite' });
   s = venueReducer(s, { type: 'occupancy', counts: { 'suite-booth': 8 } });
   assert.equal(canEnter(s, 'suite-booth').ok, false);
 
@@ -224,6 +225,7 @@ test('self-check rejects duplicate ids and a child open when its parent is not',
 
 function viewerAt(viewer: Viewer, roomId: RoomId | null) {
   let s = createVenueState({ viewer, schedule: TEST_NIGHT, now: TEST_TIMES.live, occupancy: {}, presence: MOCK_PRESENCE });
+  if (roomId === 'suite-booth') s = venueReducer(s, { type: 'enter', roomId: 'suite' }); // the booth is reached through The Suite
   if (roomId) s = venueReducer(s, { type: 'enter', roomId });
   assert.equal(s.location, roomId);
   return s;
@@ -274,4 +276,78 @@ test('self-check rejects a hotspot to an unknown room, to itself, or off the sce
   assert.ok(validateRooms(withHotspot({ roomId: 'cellar', x: 10, y: 10 })).some((e) => e.includes('"cellar"')));
   assert.ok(validateRooms(withHotspot({ roomId: 'main-floor', x: 10, y: 10 })).some((e) => e.includes("isn't another room")));
   assert.ok(validateRooms(withHotspot({ roomId: 'bar', x: 120, y: 10 })).some((e) => e.includes('off the scene')));
+});
+
+// --- The Suite: booth path, requests, waitlist, grants, menus -------------
+
+const noPassUnder21: Viewer = { ...MOCK_VIEWERS.under21WithSuitePass, guestPasses: [] };
+const enter = (s: ReturnType<typeof stateFor>, roomId: RoomId) => venueReducer(s, { type: 'enter', roomId });
+
+test('the Suite Booth is reached only from inside The Suite', () => {
+  const v = MOCK_VIEWERS.over21WithSuitePass;
+  assert.deepEqual(denial(v, 'suite-booth'), { reason: 'throughParent', roomId: 'suite-booth' });
+  assert.equal(enter(enter(stateFor(v), 'main-floor'), 'suite-booth').location, 'main-floor', 'not from Main Floor');
+  const booth = enter(enter(stateFor(v), 'suite'), 'suite-booth');
+  assert.equal(booth.location, 'suite-booth');
+  assert.equal(venueReducer(booth, { type: 'tick', now: TEST_TIMES.live + 60_000 }).location, 'suite-booth', 'staying is fine');
+  assert.equal(enter(booth, 'suite').location, 'suite', 'back out to The Suite');
+});
+
+test('the booth path never outranks age or the pass', () => {
+  assert.equal(denial(MOCK_VIEWERS.under21WithSuitePass, 'suite-booth')?.reason, 'underage');
+  assert.deepEqual(denial(MOCK_VIEWERS.over21NoPass, 'suite-booth'), { reason: 'needsPass', roomId: 'suite' });
+});
+
+test('request a pass: only 21+ members who lack one; never under 21, even by direct dispatch', () => {
+  const ask = (v: Viewer, roomId: RoomId = 'suite') => venueReducer(stateFor(v), { type: 'requestPass', roomId }).requests.passRequested;
+  assert.deepEqual(ask(MOCK_VIEWERS.over21NoPass), ['suite']);
+  assert.deepEqual(ask(noPassUnder21), [], 'under 21');
+  assert.deepEqual(ask(MOCK_VIEWERS.under21WithSuitePass), [], 'under 21 holding a pass');
+  assert.deepEqual(ask(MOCK_VIEWERS.over21WithSuitePass), [], 'already has one');
+  assert.deepEqual(ask(MOCK_VIEWERS.unverified), [], 'unverified');
+  assert.deepEqual(ask(MOCK_VIEWERS.over21NoPass, 'suite-booth'), [], 'the pass is for The Suite, not the booth');
+  const twice = venueReducer(venueReducer(stateFor(MOCK_VIEWERS.over21NoPass), { type: 'requestPass', roomId: 'suite' }), { type: 'requestPass', roomId: 'suite' });
+  assert.deepEqual(twice.requests.passRequested, ['suite']);
+});
+
+test('waitlist: without a pass, or with one when full; never under 21', () => {
+  const wait = (v: Viewer, counts = {}) =>
+    venueReducer(venueReducer(stateFor(v), { type: 'occupancy', counts }), { type: 'joinWaitlist', roomId: 'suite' }).requests.waitlisted;
+  assert.deepEqual(wait(MOCK_VIEWERS.over21NoPass), ['suite']);
+  assert.deepEqual(wait(MOCK_VIEWERS.over21WithSuitePass), [], 'can walk in');
+  assert.deepEqual(wait(MOCK_VIEWERS.over21WithSuitePass, { suite: 40 }), ['suite'], 'full');
+  assert.deepEqual(wait(noPassUnder21), []);
+  assert.deepEqual(wait(noPassUnder21, { suite: 40 }), []);
+});
+
+test('passGranted re-checks 21+ itself: a grant never reaches an under-21 member', () => {
+  const pass = { roomId: 'suite' as const, expiresAt: TEST_NIGHT.closesAt };
+  let s = venueReducer(stateFor(MOCK_VIEWERS.over21NoPass), { type: 'requestPass', roomId: 'suite' });
+  s = venueReducer(s, { type: 'passGranted', pass });
+  assert.equal(canEnter(s, 'suite').ok, true);
+  assert.deepEqual(s.requests.passRequested, [], 'request fulfilled');
+
+  const u = venueReducer(stateFor(noPassUnder21), { type: 'passGranted', pass });
+  assert.deepEqual(u.viewer.guestPasses, [], 'no pass added');
+  assert.equal(denial(noPassUnder21, 'suite')?.reason, 'underage');
+  assert.equal(venueReducer(stateFor(noPassUnder21), { type: 'passGranted', pass: { ...pass, roomId: 'suite-booth' } }).viewer.guestPasses.length, 0);
+});
+
+test('canSeeAlcohol: menus show alcohol items only to 21+; zero-proof to everyone', () => {
+  const menus = {
+    bar: [
+      { id: 'z', name: 'Zero', detail: '', alcohol: false },
+      { id: 'a', name: 'Proof', detail: '', alcohol: true },
+    ],
+  };
+  const at = (v: Viewer) => createVenueState({ viewer: v, schedule: TEST_NIGHT, now: TEST_TIMES.live, menus });
+  assert.equal(canSeeAlcohol(at(MOCK_VIEWERS.under21WithSuitePass)), false);
+  assert.deepEqual(visibleMenu(at(MOCK_VIEWERS.under21WithSuitePass), 'bar').map((i) => i.id), ['z']);
+  assert.deepEqual(visibleMenu(at(MOCK_VIEWERS.over21NoPass), 'bar').map((i) => i.id), ['z', 'a']);
+  assert.deepEqual(visibleMenu(at(MOCK_VIEWERS.over21NoPass), 'rooftop'), []);
+});
+
+test('self-check rejects "reached from parent" on a room without one', () => {
+  const errors = validateRooms(edit('rooftop', { access: { minAge: 18, entry: 'open', reachedFrom: 'parent' } }));
+  assert.ok(errors.some((e) => e.includes('"rooftop" is reached from its parent but has none')));
 });

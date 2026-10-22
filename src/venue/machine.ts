@@ -49,7 +49,8 @@ export interface NightSchedule {
   closesAt: number;
 }
 
-export type DenialReason = 'unverified' | 'underage' | 'closed' | 'needsPass' | 'full';
+/** 'throughParent': the room is reached only from inside its parent (the Suite Booth). */
+export type DenialReason = 'unverified' | 'underage' | 'closed' | 'needsPass' | 'throughParent' | 'full';
 
 export type Access =
   | { ok: true }
@@ -68,6 +69,10 @@ export interface VenueState {
   occupancy: Partial<Record<RoomId, number>>;
   /** Where other members are: member id → room, or null when not in The Dorm. */
   presence: Readonly<Record<string, RoomId | null>>;
+  /** Rooms the viewer asked for a pass to, or joined the waitlist for. Mock until the backend. */
+  requests: { passRequested: readonly RoomId[]; waitlisted: readonly RoomId[] };
+  /** Food and drink lists per room. Alcohol items render only through canSeeAlcohol. */
+  menus: Partial<Record<RoomId, readonly MenuItem[]>>;
   /** Why the last enter failed, or why the viewer was moved out. */
   lastDenial: Extract<Access, { ok: false }> | null;
 }
@@ -77,7 +82,20 @@ export type VenueAction =
   | { type: 'enter'; roomId: RoomId }
   | { type: 'leave' }
   | { type: 'occupancy'; counts: Partial<Record<RoomId, number>> }
-  | { type: 'presence'; presence: Readonly<Record<string, RoomId | null>> };
+  | { type: 'presence'; presence: Readonly<Record<string, RoomId | null>> }
+  | { type: 'requestPass'; roomId: RoomId }
+  | { type: 'joinWaitlist'; roomId: RoomId }
+  /** The server granted a pass. Stands in for a backend push; only the dev panel sends it today. */
+  | { type: 'passGranted'; pass: GuestPass };
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  /** Plain description. No brand names. */
+  detail: string;
+  /** Alcohol-identified: rendered only when canSeeAlcohol (invariant 3). */
+  alcohol: boolean;
+}
 
 export function phaseAt(schedule: NightSchedule, now: number): NightPhase {
   if (now < schedule.opensAt || now >= schedule.closesAt) return 'closed';
@@ -87,6 +105,36 @@ export function phaseAt(schedule: NightSchedule, now: number): NightPhase {
 
 function meetsAge(eligibility: Eligibility, minAge: 18 | 21): boolean {
   return minAge === 21 ? eligibility.is21 : eligibility.is18;
+}
+
+function meetsChainAge(viewer: Viewer, roomId: RoomId): boolean {
+  return roomChain(roomId).every((room) => meetsAge(viewer.eligibility, room.access.minAge));
+}
+
+/**
+ * Invariant 3: whether alcohol-identified items and menus may render for this
+ * viewer. Scoped to items and menus, not art. Every menu goes through it, even
+ * inside The Suite where everyone is 21+.
+ */
+export function canSeeAlcohol(state: VenueState): boolean {
+  return state.viewer.eligibility.is21;
+}
+
+/** A room's menu as this viewer may see it: zero-proof always, alcohol only through canSeeAlcohol. */
+export function visibleMenu(state: VenueState, roomId: RoomId): MenuItem[] {
+  return (state.menus[roomId] ?? []).filter((item) => !item.alcohol || canSeeAlcohol(state));
+}
+
+/** Request a pass: only when the one thing between you and the room is the pass. */
+export function canRequestPass(state: VenueState, roomId: RoomId): boolean {
+  const access = canEnter(state, roomId);
+  return !access.ok && access.reason === 'needsPass' && access.roomId === roomId;
+}
+
+/** Join the waitlist: when you'd need a pass, or you hold one and the room is full. Never past an age gate. */
+export function canJoinWaitlist(state: VenueState, roomId: RoomId): boolean {
+  const access = canEnter(state, roomId);
+  return !access.ok && access.roomId === roomId && (access.reason === 'needsPass' || access.reason === 'full');
 }
 
 function hasValidPass(viewer: Viewer, roomId: RoomId, now: number): boolean {
@@ -195,7 +243,12 @@ function checkAccess(state: VenueState, roomId: RoomId, staying: boolean): Acces
     }
   }
 
+  // The Suite Booth: only from inside The Suite. Someone already in the room stays.
   const target = getRoom(roomId);
+  if (!staying && target.access.reachedFrom === 'parent' && state.location !== target.parent) {
+    return { ok: false, reason: 'throughParent', roomId };
+  }
+
   if (!staying && target.capacity !== null && (state.occupancy[roomId] ?? 0) >= target.capacity) {
     return { ok: false, reason: 'full', roomId };
   }
@@ -215,6 +268,7 @@ export function createVenueState(init: {
   dj?: DjSet | null;
   occupancy?: Partial<Record<RoomId, number>>;
   presence?: Readonly<Record<string, RoomId | null>>;
+  menus?: Partial<Record<RoomId, readonly MenuItem[]>>;
 }): VenueState {
   return {
     now: init.now,
@@ -225,6 +279,8 @@ export function createVenueState(init: {
     location: null,
     occupancy: { ...init.occupancy },
     presence: { ...init.presence },
+    requests: { passRequested: [], waitlisted: [] },
+    menus: { ...init.menus },
     lastDenial: null,
   };
 }
@@ -274,5 +330,23 @@ export function venueReducer(state: VenueState, action: VenueAction): VenueState
       return { ...state, occupancy: { ...state.occupancy, ...action.counts } };
     case 'presence':
       return { ...state, presence: { ...state.presence, ...action.presence } };
+    case 'requestPass': {
+      if (!canRequestPass(state, action.roomId) || state.requests.passRequested.includes(action.roomId)) return state;
+      return { ...state, requests: { ...state.requests, passRequested: [...state.requests.passRequested, action.roomId] } };
+    }
+    case 'joinWaitlist': {
+      if (!canJoinWaitlist(state, action.roomId) || state.requests.waitlisted.includes(action.roomId)) return state;
+      return { ...state, requests: { ...state.requests, waitlisted: [...state.requests.waitlisted, action.roomId] } };
+    }
+    case 'passGranted': {
+      // Re-checks age itself: even a granted pass never reaches someone the
+      // room's age gate excludes, so no grant path can stand in for 21+.
+      if (!meetsChainAge(state.viewer, action.pass.roomId)) return state;
+      return {
+        ...state,
+        viewer: { ...state.viewer, guestPasses: [...state.viewer.guestPasses, action.pass] },
+        requests: { ...state.requests, passRequested: state.requests.passRequested.filter((r) => r !== action.pass.roomId) },
+      };
+    }
   }
 }

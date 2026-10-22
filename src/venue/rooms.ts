@@ -8,6 +8,8 @@ export interface AccessRule {
   minAge: 18 | 21;
   /** 'guestPass': a valid pass for this room is required, on top of minAge. */
   entry: 'open' | 'guestPass';
+  /** 'parent': reachable only from inside the parent room (the Suite Booth). Default: anywhere. */
+  reachedFrom?: 'anywhere' | 'parent';
 }
 
 /** A door into another room, placed over this room's art (percent of the scene). */
@@ -108,7 +110,7 @@ const RECORDS = [
     tagline: 'More personal. Same energy.',
     parent: 'suite',
     capacity: 8,
-    access: { minAge: 21, entry: 'open' },
+    access: { minAge: 21, entry: 'open', reachedFrom: 'parent' },
     openDuring: ['live', 'afterHours'],
     art: 'suite-booth',
     crowd: 'in the booth',
@@ -161,6 +163,9 @@ export function validateRooms(rooms: readonly RoomRecord[]): string[] {
   for (const room of rooms) {
     if (byId.has(room.id)) errors.push(`duplicate room id "${room.id}"`);
     byId.set(room.id, room);
+    if (room.access.reachedFrom === 'parent' && room.parent === null) {
+      errors.push(`room "${room.id}" is reached from its parent but has none`);
+    }
     if (room.capacity !== null && room.capacity < 1) {
       errors.push(`room "${room.id}" has capacity ${room.capacity}`);
     }

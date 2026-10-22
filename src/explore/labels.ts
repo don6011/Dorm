@@ -36,6 +36,10 @@ export function roomStatus(state: VenueState, roomId: RoomId): RoomStatus {
       return { pill: '21+', tone: 'locked', note: viaParent ? `Inside ${refusing}, which is 21+.` : null };
     case 'needsPass':
       return { pill: 'Guest pass', tone: 'locked', note: viaParent ? `Needs a guest pass for ${refusing}.` : 'Entry by guest pass.' };
+    case 'throughParent': {
+      const parent = getRoom(getRoom(access.roomId).parent!).label;
+      return { pill: `Via ${parent}`, tone: 'locked', note: `Enter through ${parent}.` };
+    }
     case 'full':
       return { pill: 'Full', tone: 'locked', note: 'At capacity. Check back soon.' };
     case 'unverified':
@@ -53,6 +57,8 @@ export function describeDenial(denial: Extract<Access, { ok: false }>): string {
       return `${label} is 21+.`;
     case 'needsPass':
       return `${label} needs a guest pass.`;
+    case 'throughParent':
+      return `Enter ${label} through ${getRoom(getRoom(denial.roomId).parent!).label}.`;
     case 'full':
       return `${label} is full right now.`;
     case 'unverified':
@@ -72,6 +78,8 @@ export function lockedReason(state: VenueState, denial: Extract<Access, { ok: fa
       return `${label} is 21+.`;
     case 'needsPass':
       return 'Entry by guest pass.';
+    case 'throughParent':
+      return `Enter through ${getRoom(getRoom(denial.roomId).parent!).label}.`;
     case 'full':
       return `${label} is full right now.`;
     case 'closed': {
