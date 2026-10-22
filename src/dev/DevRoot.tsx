@@ -1,27 +1,27 @@
-// Dev-only. Swaps the mock viewer and simulates the time of night so every
-// room state can be seen without waiting for midnight.
+// Dev-only. Signs in as a mock viewer, shows the codes the mock server
+// "emails", and simulates the time of night so every state can be seen
+// without waiting for midnight.
 //
-// It may only drive the machine the way production does: a viewer swap is a
-// fresh createVenueState (what sign-in does), time arrives as ticks from the
-// provider's clock, and headcounts arrive as `occupancy` actions. It never
-// sets state directly, so it can't show a state the machine can't produce.
-// Incoming direct messages arrive as `dmReceived`, through the store's drop rules.
+// It may only drive the app the way production does: signing in as a viewer
+// makes a session through the account service (what sign-in does), time
+// arrives as ticks from the provider's clock, and headcounts arrive as
+// `occupancy` actions. It never sets state directly, so it can't show a state
+// the machine can't produce. Incoming direct messages arrive as `dmReceived`,
+// through the store's drop rules.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 
+import { AccountProvider, useAccount } from '../account/AccountProvider.tsx';
+import { deviceStorage, SESSION_KEY } from '../account/service.ts';
+import { AccountGate } from '../account/Signup.tsx';
+import { MOCK_CONNECTIONS, MOCK_DM_INCOMING, MOCK_VIEWERS, tonight } from '../data/mock.ts';
+import { createMockAccountService, type MockAccountService } from '../data/mockService.ts';
+import { MockVenue } from '../data/MockVenue.tsx';
 import { formatTime } from '../explore/labels.ts';
-
-import App from '../App.tsx';
-import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_DM_INCOMING, MOCK_DM_READ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY,
-  MOCK_PRESENCE, MOCK_VIEWERS, mockDms, nextNightAfter, tonight,
-} from '../data/mock.ts';
-import { SocialProvider, useSocial } from '../social/SocialProvider.tsx';
-import { ChatProvider } from '../chat/ChatProvider.tsx';
+import { useSocial } from '../social/SocialProvider.tsx';
 import type { NightSchedule } from '../venue/machine.ts';
 import { getRoom } from '../venue/rooms.ts';
-import { MockNight } from '../data/MockNight.tsx';
-import { useVenue, VenueProvider } from '../venue/VenueProvider.tsx';
+import { useVenue } from '../venue/VenueProvider.tsx';
 
 type ViewerKey = keyof typeof MOCK_VIEWERS;
 
@@ -40,12 +40,13 @@ const TIMES = {
 } as const;
 type TimeKey = keyof typeof TIMES;
 
-function readParams(): { viewer: ViewerKey; time: TimeKey } {
+function readParams(): { viewer: ViewerKey | null; time: TimeKey } {
   const q = new URLSearchParams(window.location.search);
   const viewer = q.get('viewer');
   const time = q.get('time');
   return {
-    viewer: viewer && viewer in MOCK_VIEWERS ? (viewer as ViewerKey) : 'over21WithSuitePass',
+    // ?viewer= signs straight in as that viewer; without it, a first visit opens on arrival.
+    viewer: viewer && viewer in MOCK_VIEWERS ? (viewer as ViewerKey) : null,
     // Previews open mid-night so the rooms are open whenever someone checks the
     // link; "Real clock" is one tap away in the panel, or ?time=real.
     time: time && time in TIMES ? (time as TimeKey) : 'live',
@@ -57,66 +58,113 @@ function simulate(timeKey: TimeKey, schedule: NightSchedule): { base: number; t0
   return at ? { base: at(schedule), t0: Date.now() } : null;
 }
 
-export function DevRoot() {
-  const [initial] = useState(readParams);
-  const [viewerKey, setViewerKey] = useState<ViewerKey>(initial.viewer);
-  const [timeKey, setTimeKey] = useState<TimeKey>(initial.time);
-  const [schedule] = useState(() => tonight(Date.now()));
-  const [sim, setSim] = useState(() => simulate(initial.time, schedule));
-  // Lives here, not in the panel: a viewer swap remounts everything under the provider.
-  const [panelOpen, setPanelOpen] = useState(false);
-
-  const onTime = (k: TimeKey) => {
-    setTimeKey(k);
-    setSim(simulate(k, schedule));
-  };
-
-  // Simulated time runs forward from the chosen point, like a real night.
-  const clock = useMemo(() => (sim ? () => sim.base + (Date.now() - sim.t0) : Date.now), [sim]);
-
-  return (
-    <VenueProvider
-      key={viewerKey}
-      viewer={MOCK_VIEWERS[viewerKey]}
-      schedule={schedule}
-      occupancy={MOCK_OCCUPANCY}
-      dj={MOCK_DJ}
-      presence={MOCK_PRESENCE}
-      menus={MOCK_MENUS}
-      nextNight={nextNightAfter(schedule)}
-      clock={clock}
-    >
-      <MockNight />
-      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} dms={mockDms(clock())} readThrough={MOCK_DM_READ}>
-        <ChatProvider initial={MOCK_CHAT}>
-          <App />
-        </ChatProvider>
-        <DevPanel
-          viewerKey={viewerKey}
-          onViewer={setViewerKey}
-          timeKey={timeKey}
-          onTime={onTime}
-          schedule={schedule}
-          open={panelOpen}
-          onToggle={() => setPanelOpen(!panelOpen)}
-        />
-      </SocialProvider>
-    </VenueProvider>
-  );
-}
-
-function DevPanel(props: {
-  viewerKey: ViewerKey;
-  onViewer: (k: ViewerKey) => void;
+interface PanelProps {
+  service: MockAccountService;
   timeKey: TimeKey;
   onTime: (k: TimeKey) => void;
   schedule: NightSchedule;
   open: boolean;
   onToggle: () => void;
-}) {
+}
+
+export function DevRoot() {
+  const [initial] = useState(readParams);
+  const [timeKey, setTimeKey] = useState<TimeKey>(initial.time);
+  const [schedule] = useState(() => tonight(Date.now()));
+  const [sim, setSim] = useState(() => simulate(initial.time, schedule));
+  // Lives here, not in the panel: signing in as someone else remounts the venue.
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  // Simulated time runs forward from the chosen point, like a real night.
+  const clock = useMemo(() => (sim ? () => sim.base + (Date.now() - sim.t0) : Date.now), [sim]);
+  const [service] = useState(() => {
+    const svc = createMockAccountService({ clock });
+    if (initial.viewer) deviceStorage().setItem(SESSION_KEY, svc.signInAs(initial.viewer).token);
+    return svc;
+  });
+  // The mock server reads the same clock (ages, message times).
+  useEffect(() => service.setClock(clock), [service, clock]);
+
+  const panel: PanelProps = {
+    service,
+    timeKey,
+    onTime: (k) => {
+      setTimeKey(k);
+      setSim(simulate(k, schedule));
+    },
+    schedule,
+    open: panelOpen,
+    onToggle: () => setPanelOpen(!panelOpen),
+  };
+
+  return (
+    <AccountProvider service={service}>
+      <DevShell clock={clock} panel={panel} />
+    </AccountProvider>
+  );
+}
+
+/** The panel sits over arrival and signup too; its venue tools exist once someone is in. */
+function DevShell({ clock, panel }: { clock: () => number; panel: PanelProps }) {
+  const { session } = useAccount();
+  return (
+    <>
+      <AccountGate>
+        {(s) => (
+          <MockVenue session={s} schedule={panel.schedule} clock={clock}>
+            <DevPanel {...panel}>
+              <VenueTools />
+            </DevPanel>
+          </MockVenue>
+        )}
+      </AccountGate>
+      {!session && <DevPanel {...panel} />}
+    </>
+  );
+}
+
+function DevPanel({ service, timeKey, onTime, schedule, open, onToggle, children }: PanelProps & { children?: ReactNode }) {
+  const { session, signedIn } = useAccount();
+  const code = useSyncExternalStore(service.subscribe, service.latestCode);
+  const current = (Object.keys(MOCK_VIEWERS) as ViewerKey[]).find((k) => MOCK_VIEWERS[k].profile.id === session?.viewer.profile.id) ?? '';
+
+  return (
+    <aside className="dev-panel" data-open={open}>
+      <button className="dev-toggle" onClick={onToggle}>
+        DEV
+      </button>
+      {open && (
+        <div className="dev-body">
+          <label>
+            Sign in as
+            <select value={current} onChange={(e) => e.target.value && signedIn(service.signInAs(e.target.value as ViewerKey))}>
+              <option value="">{session ? 'Signed-up member' : 'Signed out'}</option>
+              {Object.keys(MOCK_VIEWERS).map((k) => (
+                <option key={k}>{k}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Time
+            <select value={timeKey} onChange={(e) => onTime(e.target.value as TimeKey)}>
+              {Object.entries(TIMES).map(([k, t]) => (
+                <option key={k} value={k}>
+                  {t.at ? `${t.label} (${formatTime(t.at(schedule))})` : t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="dev-code">{code ? `Code for ${code.email}: ${code.code}` : 'No code sent yet'}</span>
+          {children}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function VenueTools() {
   const { state, dispatch } = useVenue();
   const social = useSocial();
-  const { open } = props;
   const booth = getRoom('suite-booth');
   const [received, setReceived] = useState(0);
 
@@ -132,44 +180,19 @@ function DevPanel(props: {
   const lastId = `dev-dm-${received}`;
 
   return (
-    <aside className="dev-panel" data-open={open}>
-      <button className="dev-toggle" onClick={props.onToggle}>
-        DEV
+    <>
+      <button onClick={() => dispatch({ type: 'occupancy', counts: { [booth.id]: booth.capacity ?? 0 } })}>
+        Fill {booth.label}
       </button>
-      {open && (
-        <div className="dev-body">
-          <label>
-            Viewer
-            <select value={props.viewerKey} onChange={(e) => props.onViewer(e.target.value as ViewerKey)}>
-              {Object.keys(MOCK_VIEWERS).map((k) => (
-                <option key={k}>{k}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Time
-            <select value={props.timeKey} onChange={(e) => props.onTime(e.target.value as TimeKey)}>
-              {Object.entries(TIMES).map(([k, t]) => (
-                <option key={k} value={k}>
-                  {t.at ? `${t.label} (${formatTime(t.at(props.schedule))})` : t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button onClick={() => dispatch({ type: 'occupancy', counts: { [booth.id]: booth.capacity ?? 0 } })}>
-            Fill {booth.label}
-          </button>
-          {/* Stands in for whoever grants Suite passes (undecided). The machine
-              re-checks 21+, so this does nothing for an under-21 viewer. */}
-          <button onClick={() => dispatch({ type: 'passGranted', pass: { roomId: 'suite', expiresAt: state.schedule.closesAt } })}>
-            Grant Suite pass
-          </button>
-          <button onClick={receive}>Receive a message</button>
-          {received > 0 && (
-            <span role="status">{social.state.dms.some((m) => m.id === lastId) ? 'Delivered' : 'Dropped: blocked or not connected'}</span>
-          )}
-        </div>
+      {/* Stands in for whoever grants Suite passes (undecided). The machine
+          re-checks 21+, so this does nothing for an under-21 viewer. */}
+      <button onClick={() => dispatch({ type: 'passGranted', pass: { roomId: 'suite', expiresAt: state.schedule.closesAt } })}>
+        Grant Suite pass
+      </button>
+      <button onClick={receive}>Receive a message</button>
+      {received > 0 && (
+        <span role="status">{social.state.dms.some((m) => m.id === lastId) ? 'Delivered' : 'Dropped: blocked or not connected'}</span>
       )}
-    </aside>
+    </>
   );
 }

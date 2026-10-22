@@ -11,7 +11,17 @@ import { DevRoot } from '../dev/DevRoot.tsx';
 import { formatTime } from '../explore/labels.ts';
 import { goTo, nav, person, renderApp, sheet } from '../testing/renderApp.tsx';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  window.history.replaceState(null, '', '/');
+});
+
+/** The dev root, signed straight in the way ?viewer= does. */
+const renderDev = () => {
+  window.history.replaceState(null, '', '/?viewer=over21WithSuitePass');
+  return render(<DevRoot />);
+};
 
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 /** The part of a Messages row that opens the conversation. */
@@ -190,8 +200,9 @@ test('Escape closes the conversation', () => {
 // The dev panel's "Receive a message" stands in for the server. It has no
 // rules of its own: whether a message lands is dmReceived's call.
 
-test('dev: Receive a message delivers from a connection and lights the dot', () => {
-  render(<DevRoot />);
+test('dev: Receive a message delivers from a connection and lights the dot', async () => {
+  renderDev();
+  await screen.findByRole('navigation', { name: 'Main' });
   goTo('Messages');
   open('Aaliyah');
   fireEvent.click(button('‹ Messages'));
@@ -205,8 +216,9 @@ test('dev: Receive a message delivers from a connection and lights the dot', () 
   assert.equal(tabDot(), true);
 });
 
-test("dev: a blocked sender's message is dropped, and Undo doesn't deliver it later", () => {
-  render(<DevRoot />);
+test("dev: a blocked sender's message is dropped, and Undo doesn't deliver it later", async () => {
+  renderDev();
+  await screen.findByRole('navigation', { name: 'Main' });
   goTo('People');
   fireEvent.click(person('Aaliyah')!);
   sheetButton('Block');

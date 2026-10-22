@@ -12,7 +12,8 @@ import { homeRoom } from './venue/machine.ts';
 import { getRoom, type RoomId } from './venue/rooms.ts';
 import { useVenue } from './venue/VenueProvider.tsx';
 
-function App() {
+/** `onSignOut` is there when an account is signed in (not in the venue-only test harness). */
+function App({ onSignOut }: { onSignOut?: () => void }) {
   const { state } = useVenue();
   const { state: social } = useSocial();
   const [tab, setTab] = useState<Tab>('home');
@@ -47,7 +48,7 @@ function App() {
               {tab === 'home' && <HomeTab chat={chatSize} onChat={onChat} />}
               {tab === 'people' && <PeopleTab />}
               {tab === 'messages' && <MessagesTab onOpen={setDm} />}
-              {tab === 'me' && <MeTab />}
+              {tab === 'me' && <MeTab onSignOut={onSignOut} />}
             </>
           )}
         </main>

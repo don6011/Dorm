@@ -19,16 +19,26 @@ function hueFor(id: string): string {
   return AVATAR_HUES[h % AVATAR_HUES.length];
 }
 
-export function Avatar({ member, size = 40 }: { member: PublicMember; size?: number }) {
+/** `own`: the viewer's own avatar, always the brand purple, the same before and after the account exists. */
+export function Avatar({ member, size = 40, own = false }: { member: PublicMember; size?: number; own?: boolean }) {
+  if (member.photo) {
+    return <img className="avatar avatar--photo" src={member.photo} alt="" aria-hidden="true" width={size} height={size} />;
+  }
   return (
     <span
       className="avatar"
       aria-hidden="true"
-      style={{ width: size, height: size, fontSize: size * 0.42, background: hueFor(member.id) }}
+      style={{ width: size, height: size, fontSize: size * 0.42, background: own ? AVATAR_HUES[0] : hueFor(member.id) }}
     >
       {member.displayName.charAt(0).toUpperCase()}
     </span>
   );
+}
+
+/** The viewer's own avatar while they make their profile: their photo, or their initial. */
+export function OwnAvatar({ name, photo, size }: { name: string; photo: string | null; size: number }) {
+  const member = { id: 'me', displayName: name.trim() || '?', campus: '', ...(photo ? { photo } : {}) };
+  return <Avatar member={member} size={size} own />;
 }
 
 /** Same neutral token for every school: a letter in our palette, never school colors or marks. */
@@ -109,7 +119,7 @@ export function PersonTap({
 export function SelfCard({ member }: { member: PublicMember }) {
   return (
     <div className="self-card">
-      <Avatar member={member} size={64} />
+      <Avatar member={member} size={64} own />
       <div className="self-card-text">
         <span className="self-card-name">{member.displayName}</span>
         <span className="campus-line">

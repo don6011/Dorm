@@ -156,7 +156,7 @@ export function MessagesTab({ onOpen }: { onOpen: (memberId: string) => void }) 
   );
 }
 
-export function MeTab() {
+export function MeTab({ onSignOut }: { onSignOut?: () => void }) {
   const { state } = useVenue();
   return (
     <section className="tab" aria-labelledby="me-title">
@@ -175,6 +175,12 @@ export function MeTab() {
           sponsored by any college or university. School names only show which campus a member attends.
         </p>
       </div>
+
+      {onSignOut && (
+        <button className="btn sign-out" onClick={onSignOut}>
+          Sign out
+        </button>
+      )}
     </section>
   );
 }
