@@ -8,7 +8,7 @@ import { SuiteScreen } from '../rooms/SuiteScreen.tsx';
 import { describeDenial, formatTime } from '../explore/labels.ts';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
-import { visibleMembers, visibleMessages, visibleThreads } from '../social/social.ts';
+import { isMuted, visibleMembers, visibleThreads } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
 import { canRemind, homeRoom, nightOver, opensAt, presenceOf } from '../venue/machine.ts';
 import { getRoom, LOBBIES } from '../venue/rooms.ts';
@@ -125,8 +125,8 @@ export function PeopleTab() {
 }
 
 export function MessagesTab() {
-  const { state, member, threads } = useSocial();
-  const shown = visibleThreads(state, threads);
+  const { state, member } = useSocial();
+  const shown = visibleThreads(state);
 
   return (
     <section className="tab" aria-labelledby="messages-title">
@@ -138,11 +138,10 @@ export function MessagesTab() {
           {shown.map((t) => {
             const m = member(t.memberId);
             if (!m) return null;
-            const preview = visibleMessages(state, [t.last])[0];
             return (
               <li key={t.memberId}>
                 <PersonTap member={m}>
-                  <span className="preview">{preview ? preview.body : 'Muted'}</span>
+                  <span className="preview">{isMuted(state, t.memberId) ? 'Muted' : t.last?.body}</span>
                 </PersonTap>
               </li>
             );

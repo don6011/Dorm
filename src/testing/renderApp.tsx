@@ -7,7 +7,7 @@ import { useEffect, type Dispatch } from 'react';
 import App from '../App.tsx';
 import { ChatProvider } from '../chat/ChatProvider.tsx';
 import {
-  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_THREADS,
+  MOCK_CHAT, MOCK_CONNECTIONS, MOCK_DJ, MOCK_MEMBERS, MOCK_MENUS, MOCK_OCCUPANCY, MOCK_PRESENCE, MOCK_DMS, MOCK_DM_READ,
   MOCK_VIEWERS, nextNightAfter, TEST_NIGHT, TEST_TIMES,
 } from '../data/mock.ts';
 import { MockNight } from '../data/MockNight.tsx';
@@ -43,7 +43,7 @@ export function renderApp({
     >
       <Grab />
       <MockNight />
-      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} threads={MOCK_THREADS}>
+      <SocialProvider members={MOCK_MEMBERS} connections={MOCK_CONNECTIONS} dms={MOCK_DMS} readThrough={MOCK_DM_READ}>
         <ChatProvider initial={MOCK_CHAT}>
           <App />
         </ChatProvider>

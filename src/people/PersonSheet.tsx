@@ -4,7 +4,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { connectionStatus, isMuted } from '../social/social.ts';
+import { canMessage, connectionStatus, isMuted } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
 import { Avatar, CampusMonogram, PresenceChip } from './PersonTap.tsx';
 
@@ -106,6 +106,7 @@ function PersonSheet(props: { memberId: string; onClose: () => void; onBlock: ()
   }, [onClose]);
 
   const status = connectionStatus(state, m.id);
+  const messageable = canMessage(state, m.id);
   const muted = isMuted(state, m.id);
 
   const toggleMute = () => {
@@ -152,14 +153,14 @@ function PersonSheet(props: { memberId: string; onClose: () => void; onBlock: ()
           </button>
           <button
             className="btn"
-            disabled={status !== 'connected'}
-            aria-describedby={status !== 'connected' ? 'message-hint' : undefined}
+            disabled={!messageable}
+            aria-describedby={!messageable ? 'message-hint' : undefined}
             onClick={props.onMessage}
           >
             Message
           </button>
         </div>
-        {status !== 'connected' && (
+        {!messageable && (
           <p id="message-hint" className="hint">
             You can message {m.displayName} once you're connected.
           </p>

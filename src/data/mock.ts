@@ -2,7 +2,7 @@
 
 import { getRoom, ROOMS, type RoomId } from '../venue/rooms.ts';
 import type { DjSet, MenuItem, NextNight, NightSchedule, PublicMember, Viewer } from '../venue/machine.ts';
-import type { ConnectionStatus } from '../social/social.ts';
+import type { ConnectionStatus, DirectMessage } from '../social/social.ts';
 
 /**
  * The night's schedule, local time: doors 21:00, After Hours 24:00, close 27:00
@@ -125,11 +125,24 @@ export const MOCK_CONNECTIONS: Record<string, ConnectionStatus> = {
 
 const T0 = new Date(2026, 9, 15, 22).getTime();
 
-/** Direct-message threads, one per connected member. */
-export const MOCK_THREADS = [
-  { memberId: 'm-aaliyah', last: { authorId: 'm-aaliyah', body: 'you on the floor yet?', sentAt: T0 - 4 * 60_000 } },
-  { memberId: 'm-dev', last: { authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 } },
+/**
+ * Direct messages with the viewer's connections, oldest first. `withId` is the
+ * other member; anything not from them is the viewer's, whoever is signed in.
+ * Aaliyah's latest is unread; Dev's conversation has been read.
+ */
+export const MOCK_DMS: readonly DirectMessage[] = [
+  { id: 'd1', withId: 'm-dev', authorId: 'm-dev', body: 'you coming through tonight?', sentAt: T0 - 40 * 60_000 },
+  { id: 'd2', withId: 'm-dev', authorId: 'v-jordan', body: 'see you upstairs later', sentAt: T0 - 22 * 60_000 },
+  { id: 'd3', withId: 'm-aaliyah', authorId: 'v-jordan', body: 'which room are you starting in', sentAt: T0 - 12 * 60_000 },
+  { id: 'd4', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'set times are up https://example.com/tonight', sentAt: T0 - 6 * 60_000 },
+  { id: 'd5', withId: 'm-aaliyah', authorId: 'm-aaliyah', body: 'you on the floor yet?', sentAt: T0 - 4 * 60_000 },
 ];
+
+/** Read marks at sign-in: conversation → last message read. */
+export const MOCK_DM_READ: Record<string, string> = { 'm-dev': 'd2' };
+
+/** What the dev panel's "Receive a message" sends, in turn, from the viewer's connections. */
+export const MOCK_DM_INCOMING = ['you still out?', 'come find me on the roof', 'this DJ is not missing tonight'] as const;
 
 /** Room chat. The Spot and After Hours start empty. */
 export const MOCK_CHAT = [
