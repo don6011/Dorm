@@ -3,13 +3,13 @@ import { useCallback, useState } from 'react';
 import logo from '../../design/logo-white.webp';
 import type { DrawerSize } from '../chat/ChatDrawer.tsx';
 import { RoomScreen } from '../rooms/RoomScreen.tsx';
-import { describeDenial } from '../explore/labels.ts';
+import { describeDenial, formatTime } from '../explore/labels.ts';
 import { ExploreOverlay } from '../explore/ExploreOverlay.tsx';
 import { PersonTap, PresenceChip, SelfCard, CampusMonogram } from '../people/PersonTap.tsx';
 import { visibleMembers, visibleMessages, visibleThreads } from '../social/social.ts';
 import { useSocial } from '../social/SocialProvider.tsx';
-import { homeRoom, presenceOf } from '../venue/machine.ts';
-import { getRoom } from '../venue/rooms.ts';
+import { homeRoom, opensAt, presenceOf } from '../venue/machine.ts';
+import { getRoom, LOBBY_ID } from '../venue/rooms.ts';
 import { useVenue } from '../venue/VenueProvider.tsx';
 
 const PHASE_LABEL = { closed: 'Doors closed', live: 'Live now', afterHours: 'After Hours' } as const;
@@ -26,12 +26,14 @@ function DoorsScreen() {
   const { state, dispatch } = useVenue();
   const [exploring, setExploring] = useState(false);
   const closeExplore = useCallback(() => setExploring(false), []);
+  // Before doors, say when they open; after closing, just "Doors closed".
+  const doorsAt = state.phase === 'closed' ? opensAt(state, LOBBY_ID) : null;
 
   return (
     <section className="shell" aria-label="Home">
       <img className="logo" src={logo} alt="The Dorm" />
       <p className="tagline">Every campus. One night.</p>
-      <p className="phase">{PHASE_LABEL[state.phase]}</p>
+      <p className="phase">{doorsAt !== null ? `Doors open ${formatTime(doorsAt)}` : PHASE_LABEL[state.phase]}</p>
 
       {state.location ? (
         <p className="where">

@@ -27,6 +27,9 @@ test('Home shows the Main Floor scene when it is open, and the doors screen befo
   cleanup();
   renderApp({ now: TEST_TIMES.beforeDoors });
   assert.equal(heading(), null);
+  screen.getByText(/^Doors open 9:00\sPM$/);
+  cleanup();
+  renderApp({ now: TEST_TIMES.afterClose });
   screen.getByText('Doors closed');
 });
 
