@@ -39,7 +39,14 @@ Do not add features outside this list. If something seems missing, ask.
 ## Product decisions (settled — do not reopen without asking)
 
 - **Rooms.** Main Floor; The Bar (child of Main Floor, so rule 3 has an addressable place); Rooftop; The Suite (21+ **and** guest-pass-only — 21+ is the floor, not the headline); Suite Booth (child of The Suite); The Spot; After Hours.
-- **After Hours concentrates the night.** When After Hours opens, Main Floor, The Bar, Rooftop and The Spot close. The Suite stays open. Expressed via each room's `openDuring`, not code.
+- **After Hours concentrates the night.** When After Hours opens (midnight in the current schedule), Main Floor, The Bar, Rooftop and The Spot close. The Suite and its Booth stay open. Expressed via each room's `openDuring`, not code.
+  - **No time is written into copy or code.** Every time shown (doors, "opens …", last call, the closing screen, the dev panel's presets) is read from the schedule (`NightSchedule`, built in `mock.ts` from `NIGHT_HOURS` and `LAST_CALL_MINUTES`). Changing a night is a data edit; a test moves the night and checks the copy follows.
+  - **Last call** (`lastCall`): from `lastCallAt`, people in rooms that close get "Last call · the night moves downstairs at <time>". The Suite and people in no room don't.
+  - **At opening**: people in closing rooms are moved out; `closedOn` keeps their room on Home, dimmed, chat read-only ("This room has closed for the night"), with the next lobby's button (**Head downstairs**). Only being moved out of a closing room sets it. `canPost` refuses closed rooms.
+  - **Lobbies** are data (`lobby` on the record, with its join label): Home shows the first open one: Main Floor, then After Hours. Back buttons with no parent go to the open lobby (The Suite → "‹ After Hours").
+  - **Remind me** (`remind`, `canRemind`): for any room that opens later tonight and that your age lets you into. When it opens it becomes an in-app notice (mock for push; push is an open item). Going in clears the notice.
+  - **End of night** (`nightOver`): everything closes, including The Suite; Home shows "That's the night." with the next night's lineup.
+  - The mock crowd moves downstairs at After Hours and goes home at close via `MockNight` (mock layer only; existing `presence` / `occupancy` actions). It disappears with the mock layer.
 - **Cut from V1:** Open Circles, Music Trivia, Campus Clash. Rooms must not make games hard to add later (games would be their own records pointing at a room), but don't build them.
 - **Capacity rolls upward.** A room's capacity counts the room and everything beneath it (see the comment on `capacity` in `rooms.ts`). Not yet implemented.
 - **Rule 3 lives in the machine, scoped to items and menus.** `canSeeAlcohol` decides whether alcohol-identified *items and menus* render; `visibleMenu` applies it and is the **only** gate (the menu component doesn't re-check). Every menu goes through it, including The Suite's. Menus are display only: no ordering or prices in V1. It does not gate art: there is one art set, with nothing legible, so there is no art variant to branch on. Don't build one.
@@ -51,7 +58,7 @@ Do not add features outside this list. If something seems missing, ask.
   - Block hides a member from People, room rosters and avatars, threads, every chat and invitations, and ends the connection (Undo restores it). Mute hides only their messages, in every chat including DMs.
   - Members render only through `PersonTap` in `src/people/`; a test fails if a member's name is rendered anywhere else.
 - **Presence never reveals age.** A member in The Suite or the Suite Booth shows as "In The Dorm" to anyone outside that age-gated area: People rows, the person sheet, invitations, threads, everywhere presence appears. `presenceOf` in the machine decides it. The person sheet never shows age, DOB or 21+ status.
-- **Room screens.** One generic `RoomScreen` driven by each room's record (art, crowd phrase, `scene` layout); Main Floor's Double Halo and hotspots are data on its record. Home shows the room you're in, or Main Floor when it's open (`homeRoom`); otherwise the doors screen. Back goes to the parent room (The Bar → Main Floor), else Main Floor if open, else Leave.
+- **Room screens.** One generic `RoomScreen` driven by each room's record (art, crowd phrase, `scene` layout, `palette`); Main Floor's Double Halo and hotspots are data on its record; After Hours uses the `midnight` palette (indigo, never gold). Home shows `homeRoom`: the room you're in, else the room that closed on you, else the open lobby; otherwise the doors screen (before doors) or the closing screen (after close). Back goes to the parent room (The Bar → Main Floor), else the open lobby, else Leave.
   - Locked doors explain in place via `lockedReason`: "The Suite is 21+." only ever reaches under-21 members; 21+ without a pass reads "Entry by guest pass." Age is never the headline for them.
   - "N from your campus" is derived (`campusCount`): members in the room who share your campus, minus blocked. Hidden at 0. Never invented.
   - The Double Halo ticker is built from tonight's programming only (`lineup`), never member data, so no school names.
@@ -105,5 +112,5 @@ Night phase and room occupancy are one state machine, not per-screen state. Any 
 - `src/rooms/` — `RoomScreen` (scene, halo, hotspots, context, action), `SuiteScreen` (The Suite + Booth), `DoorSheet` (pass rooms), `Menu.tsx` (one menu for The Bar and The Suite), `navigation.ts` (`backTarget`, `opensDoor`), `lineup.ts`, `art.ts` (art by file name, `inSuite`). Menu and door sheets render into `<body>` so they sit above the bottom nav.
 - `src/chat/` — `chat.ts` (posting rule: only in the room you're in), `ChatProvider`, `ChatDrawer` (ported from the zip), `useKeyboardInset` (iOS keyboard).
 - `src/testing/renderApp.tsx` — test harness that wires the whole app on mock data.
-- `src/data/mock.ts` — the only fixture file.
+- `src/data/mock.ts` — the only fixture file, including the schedule (`NIGHT_HOURS`, `LAST_CALL_MINUTES`) and the mock crowd per phase (`mockCrowd`). `src/data/MockNight.tsx` applies it when the night changes.
 - Tests: `npm test` (vitest; dev-only, pinned). Component tests opt into a DOM with a `// @vitest-environment jsdom` first line. Lint: `npm run lint` (oxlint, from the starter).
